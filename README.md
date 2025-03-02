@@ -4,16 +4,9 @@
 
 ## Installation
 
-Clone the repo.
-Then build the application as shown below.
+Clone the repo
 
-```bash
-    cd .\Client
-    npm install
-    npm run build
-```
-
-Next run server.
+Run server
 
 ```bash
     cd .\Server
