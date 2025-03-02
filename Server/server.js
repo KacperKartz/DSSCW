@@ -5,15 +5,18 @@ const app = express();
 const PORT = 3000;
 
 
-app.use(express.static(path.join(__dirname, "../Client/dist")));
+app.use(express.static(path.join(__dirname, "../Client/public")));
 
+
+
+app.use(express.static(path.join(__dirname, "../Client/src")));
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "../Client/dist", "index.html"));
+    res.sendFile(path.join(__dirname, "../Client/src", "index.html"));
 });
 
 app.get("/blog", (req, res) => {
-    res.sendFile(path.join(__dirname, "../Client/dist", "blog.html"));
+    res.sendFile(path.join(__dirname, "../Client/src", "blog.html"));
 });
 
 
