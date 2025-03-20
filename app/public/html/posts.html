@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title> BIKES FOR REAL?? </title>
+        <meta charset="utf-8">
+        <link rel="icon" type="image/x-icon" href="../imgs/foodie.ico">
+        <link rel="stylesheet" href="../css/style.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="../js/posts.js" defer></script>
+        <script src="../js/main.js" defer></script>
+    </head>
+    <body>
+        <header>
+            <a href="../html/index.html"><img id="logo" src="../imgs/logo.png"></a>
+            <h1>BIKES FOR REAL.</h1>
+            <div class="dropdown">
+                <button id="login_link" href="#">Username <i class="fa fa-caret-down"></i></button>
+                <div class="dropdown-content">
+                    <a id="logout_btn" href="../html/login.html">Log out</a>
+                </div>
+            </div>
+        </header>
+
+        <nav>
+            <ul>
+                <li><a href="../html/index.html">Home</a></li>
+                <li class="active"><a href="../html/posts.html">Latest Posts</a></li>
+                <li><a href="../html/my_posts.html">My Posts</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <section id="postsList">
+                <h2>Latest Biker Posts</h2>
+                <p>See the latest posts from your fellow Bikers!</p>
+
+                <i class="fa fa-search" aria-hidden="true"></i>
+                <input class="search_bar" id="search" name="search" type="text" placeholder="Search posts...">
+            </section>
+        </main>
+    </body>
+</html>

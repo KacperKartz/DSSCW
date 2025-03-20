@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title> BIKES FOR REAL? </title>
+        <meta charset="utf-8">
+        <link rel="icon" type="image/x-icon" href="../imgs/foodie.ico">
+        <link rel="stylesheet" href="../css/style.css">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <script src="../js/my_posts.js" defer></script>
+        <script src="../js/main.js" defer></script>
+    </head>
+    <body>
+        <header>
+            <a href="../html/index.html"><img id="logo" src="../imgs/logo.png"></a>
+            <h1> BIKES FOR REAL!</h1>
+            <div class="dropdown">
+                <button id="login_link" href="#">Username <i class="fa fa-caret-down"></i></button>
+                <div class="dropdown-content">
+                    <a id="logout_btn" href="../html/login.html">Log out</a>
+                </div>
+            </div>
+        </header>
+
+        <nav>
+            <ul>
+                <li><a href="../html/index.html">Home</a></li>
+                <li><a href="../html/posts.html">Latest Posts</a></li>
+                <li class="active"><a href="../html/my_posts.html">My Posts</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <section>
+                <h2>Share your thoughts</h2>
+                <p>Get chatting with your fellow Bikers!</p>
+
+                <form action="/makepost" method="post" id="postForm" name="postForm">
+                    <fieldset>
+                        <legend>Compose a Post</legend>
+                            <label for="title_field">Post Title:</label>
+                            <input id="title_field" name="title_field" type="text" placeholder="Title" required>
+
+                            <label for="content_field">Post Content:</label>
+                            <textarea id="content_field" name="content_field" placeholder="Write your thoughts here.." required></textarea>
+                            <!-- <input id="content_field" name="content_field" type="text"> -->
+
+                            <input id="postId" name="postId" type="hidden">
+                            
+                            <button type="submit" id="post_button">Post</button>
+                    </fieldset>
+                </form>
+            </section>
+
+            <section id="myPosts">
+                <h2>Your Posts</h2>
+                <p>See all the posts you've made so far.</p>
+
+                <i class="fa fa-search" aria-hidden="true"></i>
+                <input class="search_bar" id="search" name="search" type="text" placeholder="Search your posts...">
+            </section>
+        </main>
+    </body>
+</html>
