@@ -48,4 +48,8 @@ async function checkLoginAttempts() {
     }
 }
 
+document.getElementById('login_btn_google').addEventListener('click', function() {
+    window.location.href = '/auth/google';
+});
+
 checkLoginAttempts();

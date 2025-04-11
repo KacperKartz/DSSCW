@@ -1,6 +1,16 @@
 const express = require('express')
+const session = require('express-session');
+const passport = require( 'passport' );
+
+require("dotenv").config();
+require('./public/js/auth');
+
 const app = express();
 const port = 3000;
+
+app.use(session({ secret: process.env.PASSPORT_SECRET}));
+app.use(passport.initialize());
+app.use(passport.session());
 
 var bodyParser = require('body-parser');
 const fs = require('fs');
@@ -10,6 +20,12 @@ app.use(express.static(__dirname + '/public'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+function isLoggedIn(req, res, next){
+    req.user ? next() : res.sendStatus(401);
+};
+
+
+// #region Page Navigation
 // Landing page
 app.get('/', (req, res) => {
     /// send the static file
@@ -20,6 +36,38 @@ app.get('/', (req, res) => {
     })
 });
 
+app.get('/auth/google',
+    passport.authenticate('google', { scope: ['email', 'profile']})
+);
+
+app.get('/google/callback',
+    passport.authenticate('google', {
+        successRedirect: '/home',
+        failureRedirect: '/',
+    })
+);
+
+app.get('/home', isLoggedIn, (req, res) => {
+    res.sendFile(__dirname + '/public/html/index.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+    console.log(`Hi there ${req.user.displayName}`);
+});
+
+app.get('/logout', (req, res, next) => {
+    req.logout(function(err) {
+        if (err) { return next(err); }
+
+        res.sendFile(__dirname + '/public/html/login.html', (err) => {
+            if (err){
+                console.log(err);
+            }
+        });
+    });
+});
+
 // Reset login_attempt.json when server restarts
 let login_attempt = {"username" : "null", "password" : "null"};
 let data = JSON.stringify(login_attempt);
@@ -28,63 +76,63 @@ fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 // Store who is currently logged in
 let currentUser = null;
 
-// Login POST request
-app.post('/',function(req, res){
+// // Login POST request
+// app.post('/',function(req, res){
 
-    // Get username and password entered from user
-    var username = req.body.username_input;
-    var password = req.body.password_input;
+//     // Get username and password entered from user
+//     var username = req.body.username_input;
+//     var password = req.body.password_input;
 
-    // Currently only "username" is a valid username
-    if(username !== "username") {
+//     // Currently only "username" is a valid username
+//     if(username !== "username") {
 
-        // Update login_attempt with credentials used to log in
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//         // Update login_attempt with credentials used to log in
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Redirect back to login page
-        res.sendFile(__dirname + '/public/html/login.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        });
-    }
+//         // Redirect back to login page
+//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         });
+//     }
 
-    // Currently only "password" is a valid password
-    if(password !== "password") {
+//     // Currently only "password" is a valid password
+//     if(password !== "password") {
 
-        // Update login_attempt with credentials used to log in
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//         // Update login_attempt with credentials used to log in
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Redirect back to login page
-        res.sendFile(__dirname + '/public/html/login.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        });
-    }
+//         // Redirect back to login page
+//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         });
+//     }
 
-    // Valid username and password both entered together
-    if(username === "username" && password === "password") {
-        // Update login_attempt with credentials
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//     // Valid username and password both entered together
+//     if(username === "username" && password === "password") {
+//         // Update login_attempt with credentials
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Update current user upon successful login
-        currentUser = req.body.username_input;
+//         // Update current user upon successful login
+//         currentUser = req.body.username_input;
 
-        // Redirect to home page
-        res.sendFile(__dirname + '/public/html/index.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        })
-    }
-});
+//         // Redirect to home page
+//         res.sendFile(__dirname + '/public/html/index.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         })
+//     }
+// });
 
 // Make a post POST request
 app.post('/makepost', function(req, res) {
@@ -148,3 +196,14 @@ app.post('/makepost', function(req, res) {
 app.listen(port, () => {
     console.log(`My app listening on port ${port}!`)
 });
+
+// #endregion
+
+// #region API
+
+// Change this when we start using database stuff, this could be kinda taxing if its getting called a lot
+app.get('/api/user', isLoggedIn, (req, res) => {
+    res.json({ username: req.user.displayName });
+});
+  
+// #endregion
