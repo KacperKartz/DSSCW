@@ -24,6 +24,8 @@ function isLoggedIn(req, res, next){
     req.user ? next() : res.sendStatus(401);
 };
 
+
+// #region Page Navigation
 // Landing page
 app.get('/', (req, res) => {
     /// send the static file
@@ -54,13 +56,16 @@ app.get('/home', isLoggedIn, (req, res) => {
     console.log(`Hi there ${req.user.displayName}`);
 });
 
-app.get('/logout', (req, res) => {
-    req.logout();
-    res.sendFile(__dirname + '/public/html/login.html', (err) => {
-        if (err){
-            console.log(err);
-        }
-    })
+app.get('/logout', (req, res, next) => {
+    req.logout(function(err) {
+        if (err) { return next(err); }
+
+        res.sendFile(__dirname + '/public/html/login.html', (err) => {
+            if (err){
+                console.log(err);
+            }
+        });
+    });
 });
 
 // Reset login_attempt.json when server restarts
@@ -191,3 +196,14 @@ app.post('/makepost', function(req, res) {
 app.listen(port, () => {
     console.log(`My app listening on port ${port}!`)
 });
+
+// #endregion
+
+// #region API
+
+// Change this when we start using database stuff, this could be kinda taxing if its getting called a lot
+app.get('/api/user', isLoggedIn, (req, res) => {
+    res.json({ username: req.user.displayName });
+});
+  
+// #endregion
