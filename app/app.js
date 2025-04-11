@@ -2,8 +2,11 @@ const express = require('express')
 const app = express();
 const port = 3000;
 
+const passport = require( 'passport' );
 var bodyParser = require('body-parser');
 const fs = require('fs');
+
+require('./public/js/auth');
 
 app.use(express.static(__dirname + '/public'));
 
@@ -20,6 +23,10 @@ app.get('/', (req, res) => {
     })
 });
 
+app.get('/auth/google',
+    passport.authenticate('google', { scope: ['email', 'profile']})
+);
+
 // Reset login_attempt.json when server restarts
 let login_attempt = {"username" : "null", "password" : "null"};
 let data = JSON.stringify(login_attempt);
@@ -28,63 +35,63 @@ fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 // Store who is currently logged in
 let currentUser = null;
 
-// Login POST request
-app.post('/',function(req, res){
+// // Login POST request
+// app.post('/',function(req, res){
 
-    // Get username and password entered from user
-    var username = req.body.username_input;
-    var password = req.body.password_input;
+//     // Get username and password entered from user
+//     var username = req.body.username_input;
+//     var password = req.body.password_input;
 
-    // Currently only "username" is a valid username
-    if(username !== "username") {
+//     // Currently only "username" is a valid username
+//     if(username !== "username") {
 
-        // Update login_attempt with credentials used to log in
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//         // Update login_attempt with credentials used to log in
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Redirect back to login page
-        res.sendFile(__dirname + '/public/html/login.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        });
-    }
+//         // Redirect back to login page
+//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         });
+//     }
 
-    // Currently only "password" is a valid password
-    if(password !== "password") {
+//     // Currently only "password" is a valid password
+//     if(password !== "password") {
 
-        // Update login_attempt with credentials used to log in
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//         // Update login_attempt with credentials used to log in
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Redirect back to login page
-        res.sendFile(__dirname + '/public/html/login.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        });
-    }
+//         // Redirect back to login page
+//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         });
+//     }
 
-    // Valid username and password both entered together
-    if(username === "username" && password === "password") {
-        // Update login_attempt with credentials
-        let login_attempt = {"username" : username, "password" : password};
-        let data = JSON.stringify(login_attempt);
-        fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+//     // Valid username and password both entered together
+//     if(username === "username" && password === "password") {
+//         // Update login_attempt with credentials
+//         let login_attempt = {"username" : username, "password" : password};
+//         let data = JSON.stringify(login_attempt);
+//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-        // Update current user upon successful login
-        currentUser = req.body.username_input;
+//         // Update current user upon successful login
+//         currentUser = req.body.username_input;
 
-        // Redirect to home page
-        res.sendFile(__dirname + '/public/html/index.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        })
-    }
-});
+//         // Redirect to home page
+//         res.sendFile(__dirname + '/public/html/index.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         })
+//     }
+// });
 
 // Make a post POST request
 app.post('/makepost', function(req, res) {
