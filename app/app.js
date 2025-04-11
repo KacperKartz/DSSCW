@@ -1,17 +1,28 @@
 const express = require('express')
+const session = require('express-session');
+const passport = require( 'passport' );
+
+require("dotenv").config();
+require('./public/js/auth');
+
 const app = express();
 const port = 3000;
 
-const passport = require( 'passport' );
+app.use(session({ secret: process.env.PASSPORT_SECRET}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 var bodyParser = require('body-parser');
 const fs = require('fs');
-
-require('./public/js/auth');
 
 app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+function isLoggedIn(req, res, next){
+    req.user ? next() : res.sendStatus(401);
+};
 
 // Landing page
 app.get('/', (req, res) => {
@@ -26,6 +37,31 @@ app.get('/', (req, res) => {
 app.get('/auth/google',
     passport.authenticate('google', { scope: ['email', 'profile']})
 );
+
+app.get('/google/callback',
+    passport.authenticate('google', {
+        successRedirect: '/home',
+        failureRedirect: '/',
+    })
+);
+
+app.get('/home', isLoggedIn, (req, res) => {
+    res.sendFile(__dirname + '/public/html/index.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+    console.log(`Hi there ${req.user.displayName}`);
+});
+
+app.get('/logout', (req, res) => {
+    req.logout();
+    res.sendFile(__dirname + '/public/html/login.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+});
 
 // Reset login_attempt.json when server restarts
 let login_attempt = {"username" : "null", "password" : "null"};
