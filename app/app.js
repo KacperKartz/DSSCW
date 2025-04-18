@@ -159,7 +159,7 @@ app.post('/makepost', function(req, res) {
     }
 
     // Add post to posts.json
-    posts.push({"username": currentUser , "timestamp": curDate, "postId": newId, "title": req.body.title_field, "content": req.body.content_field});
+    posts.push({"username": res.locals.user.nickname, "timestamp": curDate, "postId": newId, "title": req.body.title_field, "content": req.body.content_field});
 
     fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
 
