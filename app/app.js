@@ -1,6 +1,10 @@
-const express = require('express')
+const express = require('express');
+const { auth } = require('express-openid-connect');
+const dotenv = require('dotenv');
 const app = express();
 const port = 3000;
+
+dotenv.load();
 
 var bodyParser = require('body-parser');
 const fs = require('fs');
@@ -9,6 +13,18 @@ app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+const config = {
+    authRequired: false,
+    auth0Logout: true,
+    baseURL: 'http://localhost:3000',
+    clientID: process.env.clientID,
+    issuerBaseURL: process.env.issuerBaseURL,
+    secret: process.env.secret
+  };
+
+  app.use(auth(config));
+  
 
 // Landing page
 app.get('/', (req, res) => {
