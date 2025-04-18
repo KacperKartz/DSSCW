@@ -23,13 +23,18 @@ const config = {
     secret: process.env.SECRET
   };
 
-  app.use(auth(config));
+app.use(auth(config));
+
+// Middleware to make the `user` object available for all views
+app.use(function (req, res, next) {
+    res.locals.user = req.oidc.user;
+    next();
+});
   
 
 // Landing page
 app.get('/', (req, res) => {
-    
-    if(req.oidc.isAuthenticated()){
+    if(req.oidc && req.oidc.isAuthenticated()){
         res.sendFile(__dirname + '/public/html/index.html', (err) => {
             if (err){
                 console.log(err);
@@ -43,6 +48,15 @@ app.get('/', (req, res) => {
             console.log(err);
         }
     })
+});
+
+// Temporary api for user info, could be permanent. Saves us storing anything on the user side.
+app.get('/api/user', (req, res) => {
+    if (req.oidc && req.oidc.isAuthenticated()) {
+        res.json(req.oidc.user);
+    } else {
+        res.status(401).json({ error: 'Not authenticated' });
+    }
 });
 
 // // Reset login_attempt.json when server restarts
