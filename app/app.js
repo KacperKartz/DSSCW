@@ -50,6 +50,32 @@ app.get('/', (req, res) => {
     })
 });
 
+// Landing page
+app.get('/posts', (req, res) => {
+    if (!req.oidc || !req.oidc.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized: Please log in to view posts.' });
+    }
+
+    res.sendFile(__dirname + '/public/html/posts.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+});
+
+// Landing page
+app.get('/my_posts', (req, res) => {
+    if (!req.oidc || !req.oidc.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
+    }
+
+    res.sendFile(__dirname + '/public/html/my_posts.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+});
+
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
 app.get('/api/user', (req, res) => {
     if (req.oidc && req.oidc.isAuthenticated()) {
@@ -128,6 +154,10 @@ app.get('/api/user', (req, res) => {
 // Make a post POST request
 app.post('/makepost', function(req, res) {
 
+    if (!req.oidc || !req.oidc.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
+    }
+
     // Read in current posts
     const json = fs.readFileSync(__dirname + '/public/json/posts.json');
     var posts = JSON.parse(json);
@@ -169,6 +199,10 @@ app.post('/makepost', function(req, res) {
 
  // Delete a post POST request
  app.post('/deletepost', (req, res) => {
+
+    if (!req.oidc || !req.oidc.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
+    }
 
     // Read in current posts
     const json = fs.readFileSync(__dirname + '/public/json/posts.json');
