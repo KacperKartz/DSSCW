@@ -1,4 +1,6 @@
 // Update error message based on login attempt
+import { genericMessage } from "../../accountEnum.js";
+
 async function checkLoginAttempts() {
     const response = await fetch("../json/login_attempt.json");
     const form_data = await response.json();
@@ -23,11 +25,7 @@ async function checkLoginAttempts() {
             document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
         }
 
-        let error_msg = document.createElement("p");
-        error_msg.id = "login_error";
-        error_msg.textContent = "Incorrect username.";
-        error_msg.classList.add("error");
-        document.querySelector("#login_btn").parentNode.insertBefore(error_msg, document.querySelector("#login_btn"));
+        genericMessage(false);
 
     } else if(form_data.password !== "password") { // Inform user they have entered the incorrect password
 
@@ -35,11 +33,7 @@ async function checkLoginAttempts() {
             document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
         }
 
-        let error_msg = document.createElement("p");
-        error_msg.id = "login_error";
-        error_msg.textContent = "Incorrect password.";
-        error_msg.classList.add("error");
-        document.querySelector("#login_btn").parentNode.insertBefore(error_msg, document.querySelector("#login_btn"));
+        genericMessage(false);
 
     } else {
         if(document.getElementById("login_error") !== null) {
