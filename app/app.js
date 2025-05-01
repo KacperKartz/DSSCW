@@ -8,16 +8,10 @@ dotenv.config();
 
 var bodyParser = require('body-parser');
 const fs = require('fs');
-const { Client } = require('pg')
+const { Client } = require('pg');
+const { title } = require('process');
 
 
-const client = new Client({
-    host: "dss.sxmus.xyz",
-    user: "postgres",
-    port: 5432,
-    password: "DevelopingUG03",
-    database: "DSS"
-})
 
 app.use(express.static(__dirname + '/public'));
 
@@ -31,7 +25,14 @@ const config = {
     clientID: process.env.CLIENT_ID,
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     secret: process.env.SECRET
-  };
+};
+const client = new Client({
+    host: process.env.DATABASE_IP,
+    user: process.env.DATABASE_USER,
+    port: process.env.DATABASE_PORT,
+    password: process.env.DATABASE_PASSWORD,
+    database: process.env.DATABASE_NAME
+})
 
 app.use(auth(config));
 
@@ -79,6 +80,7 @@ app.get('/my_posts', (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
 
+
     res.sendFile(__dirname + '/public/html/my_posts.html', (err) => {
         if (err){
             console.log(err);
@@ -95,6 +97,19 @@ app.get('/api/user', (req, res) => {
     }
 });
 
+app.post('/query/getPosts', async(req, res) => {
+
+    const result = await client.query('SELECT * FROM blgtbl');
+    res.send(result.rows);
+
+})
+
+app.post('/query/getMyPosts', async(req, res) => {
+    console.log(req.oidc.user.nickname);
+    const user = req.oidc.user.nickname
+    const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = " + "'" + user + "'");
+    res.send(result.rows);
+})
 // // Reset login_attempt.json when server restarts
 // let login_attempt = {"username" : "null", "password" : "null"};
 // let data = JSON.stringify(login_attempt);

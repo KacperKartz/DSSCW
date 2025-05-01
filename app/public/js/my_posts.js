@@ -1,3 +1,4 @@
+let postList = document.getElementById('myPosts');
 // Function to load posts made by user who is currently logged in
 async function loadPosts() {
 
@@ -10,7 +11,6 @@ async function loadPosts() {
     const login_data = await login_response.json();
 
     // Remove current posts
-    let postList = document.getElementById('myPosts');
 
     for(let i = 0; i < postList.children.length; i++) {
         if(postList.children[i].nodeName == "article") {
@@ -18,70 +18,73 @@ async function loadPosts() {
         }
     }
 
-    // Add posts made by current user
-    for(let i = 0; i < post_data.length; i++) {
-        
-        let author = post_data[i].username;
-
-        // Check usernames match on each post
-        if(author === login_data.username) {
-            let timestamp = post_data[i].timestamp;
-            let title = post_data[i].title;
-            let content = post_data[i].content;
-            let postId = post_data[i].postId;
-
-            let postContainer = document.createElement('article');
-            postContainer.classList.add("post");
-            let fig = document.createElement('figure');
-            postContainer.appendChild(fig);
-
-            let postIdContainer = document.createElement("h6");
-            postIdContainer.textContent = postId;
-            postIdContainer.hidden = true;
-            postId.id = "postId";
-            postContainer.appendChild(postIdContainer);
-
-            let img = document.createElement('img');
-            let figcap = document.createElement('figcaption');
-            fig.appendChild(img);
-            fig.appendChild(figcap);
-            
-            let titleContainer = document.createElement('h3');
-            titleContainer.textContent = title;
-            figcap.appendChild(titleContainer);
-            
-            let usernameContainer = document.createElement('h5');
-            usernameContainer.textContent = author;
-            figcap.appendChild(usernameContainer);
-
-            let timeContainer = document.createElement('h5');
-            timeContainer.textContent = timestamp;
-            figcap.appendChild(timeContainer);
-
-            let contentContainer = document.createElement('p');
-            contentContainer.id = "content";
-            contentContainer.textContent = content;
-            figcap.appendChild(contentContainer);
-
-            let editBtn = document.createElement('button');
-            editBtn.classList.add('editBtn');
-            editBtn.textContent = "Edit";
-            editBtn.addEventListener("click", editPost);
-            postContainer.appendChild(editBtn);
-
-            let delBtn = document.createElement('button');
-            delBtn.classList.add('delBtn');
-            delBtn.textContent = "Delete";
-            delBtn.addEventListener("click", deletePost);
-            postContainer.appendChild(delBtn);
-
-            postList.insertBefore(postContainer, document.querySelectorAll("article")[0]);
+    fetch('query/getMyPosts', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
         }
-    }
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data)
+
+        for (let i = 0; i < data.length; i++) {
+            renderPosts(data[i].blgauth, data[i].blgdate, data[i].blgtitle, data[i].blgcont, data[i].blgid)
+        }
+    })
+    
 }
 
 loadPosts();
 
+function renderPosts(author, timestamp, title, content, postId) {
+    let postContainer = document.createElement('article');
+    postContainer.classList.add("post");
+    let fig = document.createElement('figure');
+    postContainer.appendChild(fig);
+
+    let postIdContainer = document.createElement("h6");
+    postIdContainer.textContent = postId;
+    postIdContainer.hidden = true;
+    postId.id = "postId";
+    postContainer.appendChild(postIdContainer);
+
+    let img = document.createElement('img');
+    let figcap = document.createElement('figcaption');
+    fig.appendChild(img);
+    fig.appendChild(figcap);
+    
+    let titleContainer = document.createElement('h3');
+    titleContainer.textContent = title;
+    figcap.appendChild(titleContainer);
+    
+    let usernameContainer = document.createElement('h5');
+    usernameContainer.textContent = author;
+    figcap.appendChild(usernameContainer);
+
+    let timeContainer = document.createElement('h5');
+    timeContainer.textContent = timestamp;
+    figcap.appendChild(timeContainer);
+
+    let contentContainer = document.createElement('p');
+    contentContainer.id = "content";
+    contentContainer.textContent = content;
+    figcap.appendChild(contentContainer);
+
+    let editBtn = document.createElement('button');
+    editBtn.classList.add('editBtn');
+    editBtn.textContent = "Edit";
+    editBtn.addEventListener("click", editPost);
+    postContainer.appendChild(editBtn);
+
+    let delBtn = document.createElement('button');
+    delBtn.classList.add('delBtn');
+    delBtn.textContent = "Delete";
+    delBtn.addEventListener("click", deletePost);
+    postContainer.appendChild(delBtn);
+
+    postList.insertBefore(postContainer, document.querySelectorAll("article")[0]);
+}
 // Function to remove a post from the page after clicking delete - this is also reflected on the server side
 function deletePost(e) {
 
