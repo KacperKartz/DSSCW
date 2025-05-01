@@ -1,0 +1,51 @@
+----------------Random BlogID Function---------------------------------
+
+CREATE OR REPLACE FUNCTION generate_blog_id(length integer)
+RETURNS text as $$
+DECLARE 
+	alphabet text;
+	id text := '';
+	i integer;
+BEGIN
+	alphabet := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	FOR i IN 1..length LOOP
+		id := id || substr(alphabet, floor(random() * length(alphabet) + 1)::integer, 1);
+	END LOOP;
+	RETURN id;
+END;
+
+$$ LANGUAGE plpgsql
+
+----------------Create User Table---------------------------------
+
+CREATE TABLE usrtbl (
+	"usrid" VARCHAR(100) NOT NULL, 
+	"usrnme" VARCHAR(100) NOT NULL,
+	"usremail" VARCHAR(100) NOT NULL,
+	PRIMARY KEY ("usrid"),
+	UNIQUE ("usrid")
+)
+
+----------------Insert Into User Table----------------------------
+
+INSERT INTO usrtbl
+VALUES ('*userID*', '*Username*', '*UserEmail*')
+
+----------------Create Blog Table---------------------------------
+
+CREATE TABLE blgtbl (
+    "blgid" text default generate_blog_id(6),
+    "usrid" VARCHAR(100) NOT NULL, 
+    "blgtitle" text NOT NULL,
+    "blgcont" text NOT NULL,
+    "blgauth" text NOT NULL,
+    "blgdate" text NOT NULL,
+    PRIMARY KEY ("blgid"),
+    UNIQUE ("blgid"),
+    FOREIGN KEY ("usrid") REFERENCES usrtbl("usrid")
+)
+
+----------------Insert Into Blog Table----------------------------
+
+INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate)
+VALUES ('*userID*', '*blog_title', '*blog_cont*', '*blog_auth*', '*blgdate*')
