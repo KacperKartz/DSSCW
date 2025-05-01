@@ -34,17 +34,18 @@ VALUES ('*userID*', '*Username*', '*UserEmail*')
 ----------------Create Blog Table---------------------------------
 
 CREATE TABLE blgtbl (
-	"blgid" text default generate_blog_id(6),
-	"usrid" VARCHAR(100) NOT NULL, 
-	"blgtitle" text NOT NULL,
-	"blgcont" text NOT NULL,
-	"blgsuth" text NOT NULL,
-	PRIMARY KEY ("blgid"),
-	UNIQUE ("blgid"),
-	FOREIGN KEY ("usrid") REFERENCES usrtbl("usrid")
+    "blgid" text default generate_blog_id(6),
+    "usrid" VARCHAR(100) NOT NULL, 
+    "blgtitle" text NOT NULL,
+    "blgcont" text NOT NULL,
+    "blgauth" text NOT NULL,
+    "blgdate" text NOT NULL,
+    PRIMARY KEY ("blgid"),
+    UNIQUE ("blgid"),
+    FOREIGN KEY ("usrid") REFERENCES usrtbl("usrid")
 )
 
 ----------------Insert Into Blog Table----------------------------
 
-INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth)
-VALUES ('*userID*', '*blog_title', '*blog_cont*', '*blog_auth*')
+INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate)
+VALUES ('*userID*', '*blog_title', '*blog_cont*', '*blog_auth*', '*blgdate*')

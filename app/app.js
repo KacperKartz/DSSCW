@@ -11,6 +11,10 @@ dotenv.config();
 
 var bodyParser = require('body-parser');
 const fs = require('fs');
+const { Client } = require('pg');
+const { title } = require('process');
+
+
 
 app.use(express.static(__dirname + '/public'));
 
@@ -25,7 +29,14 @@ const config = {
     clientID: process.env.CLIENT_ID,
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     secret: process.env.SECRET
-  };
+};
+const client = new Client({
+    host: process.env.DATABASE_IP,
+    user: process.env.DATABASE_USER,
+    port: process.env.DATABASE_PORT,
+    password: process.env.DATABASE_PASSWORD,
+    database: process.env.DATABASE_NAME
+})
 
 app.use(auth(config));
 
@@ -73,6 +84,7 @@ app.get('/my_posts', (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
 
+
     res.sendFile(__dirname + '/public/html/my_posts.html', (err) => {
         if (err){
             console.log(err);
@@ -89,6 +101,19 @@ app.get('/api/user', (req, res) => {
     }
 });
 
+app.post('/query/getPosts', async(req, res) => {
+
+    const result = await client.query('SELECT * FROM blgtbl');
+    res.send(result.rows);
+
+})
+
+app.post('/query/getMyPosts', async(req, res) => {
+    console.log(req.oidc.user.nickname);
+    const user = req.oidc.user.nickname
+    const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = " + "'" + user + "'");
+    res.send(result.rows);
+})
 // // Reset login_attempt.json when server restarts
 // let login_attempt = {"username" : "null", "password" : "null"};
 // let data = JSON.stringify(login_attempt);
@@ -156,49 +181,58 @@ app.get('/api/user', (req, res) => {
 // });
 
 // Make a post POST request
-app.post('/makepost', function(req, res) {
+app.post('/makepost', async(req, res) => {
 
-    if (!req.oidc || !req.oidc.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
-    }
-
-    // Read in current posts
-    const json = fs.readFileSync(__dirname + '/public/json/posts.json');
-    var posts = JSON.parse(json);
-
-    // Get the current date
     let curDate = new Date();
     curDate = curDate.toLocaleString("en-GB");
-
-    // Find post with the highest ID
-    let maxId = 0;
-    for (let i = 0; i < posts.length; i++) {
-        if (posts[i].postId > maxId) {
-            maxId = posts[i].postId;
+    try {
+        if (!req.oidc || !req.oidc.isAuthenticated()) {
+            return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
+
+        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${ req.body.content_field}', '${res.locals.user.nickname}', '${curDate}')`);
     }
+    catch (err)
+    {
+        console.error(err);
+    };
+    res.redirect('/my_posts')
 
-    // Initialise ID for a new post
-    let newId = 0;
 
-    // If postId is empty, user is making a new post
-    if(req.body.postId == "") {
-        newId = maxId + 1;
-    } else { // If postID != empty, user is editing a post
-        newId = req.body.postId;
+    // // Read in current posts
+    // const json = fs.readFileSync(__dirname + '/public/json/posts.json');
+    // var posts = JSON.parse(json);
 
-        // Find post with the matching ID, delete it from posts so user can submit their new version
-        let index = posts.findIndex(item => item.postId == newId);
-        posts.splice(index, 1);
-    }
+    // // Get the current date
 
-    // Add post to posts.json
-    posts.push({"username": res.locals.user.nickname, "timestamp": curDate, "postId": newId, "title": req.body.title_field, "content": req.body.content_field});
+    // // Find post with the highest ID
+    // let maxId = 0;
+    // for (let i = 0; i < posts.length; i++) {
+    //     if (posts[i].postId > maxId) {
+    //         maxId = posts[i].postId;
+    //     }
+    // }
 
-    fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
+    // // Initialise ID for a new post
+    // let newId = 0;
 
-    // Redirect back to my_posts.html
-    res.sendFile(__dirname + "/public/html/my_posts.html");
+    // // If postId is empty, user is making a new post
+    // if(req.body.postId == "") {
+    //     newId = maxId + 1;
+    // } else { // If postID != empty, user is editing a post
+    //     newId = req.body.postId;
+
+    //     // Find post with the matching ID, delete it from posts so user can submit their new version
+    //     let index = posts.findIndex(item => item.postId == newId);
+    //     posts.splice(index, 1);
+    // }
+
+    // // Add post to posts.json
+    // posts.push({"username": res.locals.user.nickname, "timestamp": curDate, "postId": newId, "title": req.body.title_field, "content": req.body.content_field});
+    // fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
+
+    // // Redirect back to my_posts.html
+    // res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
  // Delete a post POST request
@@ -223,5 +257,7 @@ app.post('/makepost', function(req, res) {
  });
 
 app.listen(port, () => {
-    console.log(`My app listening on port ${port}!`)
+    console.log(`My app listening on port ${port}! ${config.baseURL}`)
+
+    client.connect().then(console.log('Database Connected'));
 });
