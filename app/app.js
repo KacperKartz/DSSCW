@@ -3,6 +3,9 @@ const { auth } = require('express-openid-connect');
 const dotenv = require('dotenv');
 const app = express();
 const port = 3000;
+require('dotenv').config();
+const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
+
 
 dotenv.config();
 
@@ -13,6 +16,7 @@ app.use(express.static(__dirname + '/public'));
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
 
 const config = {
     authRequired: false,
