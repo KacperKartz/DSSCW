@@ -115,7 +115,11 @@ app.post('/registerUser', (req, res) => {
 const mfaCodeStore = {}; // key: email, value: code
 
 
-
+// Grabs the email and password put in.
+// Checks if its all good and sends back a message
+// Theres a hardcoded email and password for testing purposes (maybe for the demo too?!?!?)
+// Sets the session.user email to carry it through the rest of the app
+// TODO: Add database integration
 app.post('/validateLogin',loginLimiter, (req, res) => {
     const {email, password} = req.body;
     console.log(email, password);
@@ -207,6 +211,10 @@ app.get('/mfaPage', (req, res) => {
 
 
 // MFA validation
+// Just grabs the users email and mfa code
+// Checks if the code matches the expected code which they got through email (aka console)
+// If it does, sets authenticated to true and in frontend they get redirected (yay)
+
 app.post('/mfa', (req, res) => {
     
     const { email, mfaUserCode } = req.body;   
@@ -258,6 +266,7 @@ app.get('/my_posts', (req, res) => {
         }
     })
 });
+
 
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
 app.get('/api/user', (req, res) => {
