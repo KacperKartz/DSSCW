@@ -4,8 +4,8 @@ const dotenv = require('dotenv');
 const app = express();
 const port = 3000;
 require('dotenv').config();
+const rateLimit = require('express-rate-limit');
 const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
-
 
 dotenv.config();
 
@@ -15,8 +15,8 @@ const { Client } = require('pg');
 const { title } = require('process');
 
 
-
 app.use(express.static(__dirname + '/public'));
+const session = require('express-session');
 
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -39,31 +39,198 @@ const client = new Client({
 })
 
 app.use(auth(config));
-
 // Middleware to make the `user` object available for all views
 app.use(function (req, res, next) {
     res.locals.user = req.oidc.user;
     next();
 });
-  
+
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {maxAge: 60 * 60 * 1000}
+}));
+
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Too many login attempts. Try again later.' }
+});
+
 
 // Landing page
+// app.get('/', (req, res) => {
+//     if(req.oidc && req.oidc.isAuthenticated()){
+//         res.sendFile(__dirname + '/public/html/index.html', (err) => {
+//             if (err){
+//                 console.log(err);
+//             }
+//         })
+//         return;
+//     }
 app.get('/', (req, res) => {
-    if(req.oidc && req.oidc.isAuthenticated()){
-        res.sendFile(__dirname + '/public/html/index.html', (err) => {
-            if (err){
-                console.log(err);
-            }
-        })
-        return;
+    if (req.session.user && req.session.user.email && req.session.user.authenticated === true) { /// Checks if theres a session.user and if there is an email (which can only be set if logged in)
+        return res.sendFile(__dirname + '/public/html/index.html');
     }
-
+    
     res.sendFile(__dirname + '/public/html/login.html', (err) => {
         if (err){
             console.log(err);
         }
     })
 });
+
+app.get('/register', (req, res) => {
+    res.sendFile(__dirname + '/public/html/register.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+});
+
+app.post('/registerUser', (req, res) => {
+    const {email, password} = req.query;
+    console.log(email, password);
+    if(!email || !password){
+        return res.status(400).json({error: 'Please enter both email and password'});
+    }
+
+    if(!email.includes('@') || !email.includes('.')){
+        return res.status(400).json({error: 'Incorrect credentials '});
+    }
+
+    const hashedPassword = hashPassword(password);
+    const encryptedPassword = encrypt(hashedPassword.hash);
+    const encryptedSalt = encrypt(hashedPassword.salt);
+
+
+    // Throw in the query
+
+
+})
+
+/// Server side verification
+const mfaCodeStore = {}; // key: email, value: code
+
+
+
+app.post('/validateLogin',loginLimiter, (req, res) => {
+    const {email, password} = req.body;
+    console.log(email, password);
+
+
+    if(!email || !password){
+        return res.status(400).json({error: 'Please enter both email and password'});
+    }
+
+    if(!email.includes('@') || !email.includes('.')){
+        return res.status(400).json({error: 'Incorrect credentials '});
+    }
+
+
+    
+    /// For the sake of testing
+
+
+
+        if(email === "username@test.com" && password === "password"){
+            const mfaCode = generateRandomSixDigitCode();
+            mfaCodeStore[email] = mfaCode;
+            console.log(mfaCodeStore);
+            console.log(mfaCode);
+
+            req.session.user = {
+                email: email,
+                authenticated: false
+            };
+            
+            return res.status(200).json({message: 'Login successful', email});;
+        }
+        
+        //// use the stuff below for when we have database integration        
+
+
+
+
+        
+        const query = `SELECT * FROM users WHERE email = $1`;
+        client.query(query, [email], (err, result) => {
+            
+            if(err || !result.rows.length){
+                /// Dummy hash to simulate going through the verification
+                
+                const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
+                verifyPassword(password, dummyHash, dummyHash);
+                return res.status(401).json({error: 'Incorrect credentials'});
+            }
+        
+                
+
+                /// Below are the actual checks
+                
+                const user = result.rows[0];
+                const isPasswordValid = verifyPassword(password, user.salt, user.hash);
+                
+                if(!isPasswordValid){
+                    return res.status(401).json({error: 'Incorrect credentials'});
+                }else{
+                    const mfaCode = generateRandomSixDigitCode();
+                    mfaCodeStore[email] = mfaCode;
+                    console.log(mfaCode);
+                    req.session.user = {
+                        email: email,
+                        authenticated: false
+                    };
+                    return res.status(200).json({message: 'Login successful'});
+                }
+            });
+
+
+
+});
+
+function generateRandomSixDigitCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+
+// MFA page route
+app.get('/mfaPage', (req, res) => {
+    res.sendFile(__dirname + '/public/html/mfa.html', (err) => {
+        if (err){
+            console.log(err);
+        }
+    })
+})
+
+
+// MFA validation
+app.post('/mfa', (req, res) => {
+    
+    const { email, mfaUserCode } = req.body;   
+    console.log(mfaCodeStore);
+    console.log(email, mfaUserCode);
+
+    if (!email || !mfaUserCode) {
+        return res.status(400).json({ error: 'Missing email or MFA code' });
+    }
+
+   const expectedCode = mfaCodeStore[email];
+
+    if(expectedCode && mfaUserCode === expectedCode){
+        delete mfaCodeStore[email];
+        // req.session.user = { email };  ////// will want to add user id
+        req.session.user.authenticated = true;
+        return res.status(200).json({ message: 'MFA successful' }) 
+        
+    }else{
+        return res.status(401).json({error: 'Incorrect MFA code'});
+    }
+
+})
+
 
 // Landing page
 app.get('/posts', (req, res) => {
@@ -115,22 +282,23 @@ app.post('/query/getMyPosts', async(req, res) => {
     res.send(result.rows);
 })
 // // Reset login_attempt.json when server restarts
-// let login_attempt = {"username" : "null", "password" : "null"};
-// let data = JSON.stringify(login_attempt);
-// fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
+let login_attempt = {"username" : "null", "password" : "null"};
+let data = JSON.stringify(login_attempt);
+fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 
-// // Store who is currently logged in
-// let currentUser = null;
+// Store who is currently logged in
+let currentUser = null;
 
-// // Login POST request
+// Login POST request
 // app.post('/',function(req, res){
 
 //     // Get username and password entered from user
 //     var username = req.body.username_input;
 //     var password = req.body.password_input;
+//     console.log(username, password);
 
 //     // Currently only "username" is a valid username
-//     if(username !== "username") {
+//     if(username !== "username@test.com") {
 
 //         // Update login_attempt with credentials used to log in
 //         let login_attempt = {"username" : username, "password" : password};
@@ -170,6 +338,7 @@ app.post('/query/getMyPosts', async(req, res) => {
 
 //         // Update current user upon successful login
 //         currentUser = req.body.username_input;
+//         isAuthenticated = true;
 
 //         // Redirect to home page
 //         res.sendFile(__dirname + '/public/html/index.html', (err) => {

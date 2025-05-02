@@ -1,45 +1,47 @@
-// Update error message based on login attempt
-import { genericMessage } from "../../accountEnum.js";
+const form = document.getElementById('login_form');
+const usernameInput = document.getElementById('username_input');
+const passwordInput = document.getElementById('password_input');
 
-async function checkLoginAttempts() {
-    const response = await fetch("../json/login_attempt.json");
-    const form_data = await response.json();
 
-    // Inform user they need to fill out the fields on the login form
-    if(form_data.username === "null" || form_data.password === "null") {
-        document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
+
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = usernameInput.value.trim();
+    const password = passwordInput.value.trim();
+
+    if(!email || !password){
+        alert('Please enter both email and password');
+    }else{
+        try{
+
+           const response = await fetch('/validateLogin', {
+                method: 'POST',
+                body: JSON.stringify({email, password}),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            const data = await response.json();
+
+            if(response.ok){
+               /// Correct login
+               console.log(data.email);
+               sessionStorage.setItem('email', data.email);
+                window.location.href = '/mfaPage';
+            }
+            else{
+                alert(data.error);
+            }
+
+
+
+        }catch(e){
+            
+        }
+
     }
-    if(form_data.username === "" || form_data.password === "") {
-        if(document.getElementById("login_error") !== null) {
-            document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
-        }
+})
 
-        let error_msg = document.createElement("p");
-        error_msg.id = "login_error";
-        error_msg.textContent = "Please fill out the login fields.";
-        error_msg.classList.add("error");
-        document.querySelector("#login_btn").parentNode.insertBefore(error_msg, document.querySelector("#login_btn"));
 
-    } else if(form_data.username !== "username") { // Inform user they have entered the incorrect username
-        if(document.getElementById("login_error") !== null) {
-            document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
-        }
-
-        genericMessage(false);
-
-    } else if(form_data.password !== "password") { // Inform user they have entered the incorrect password
-
-        if(document.getElementById("login_error") !== null) {
-            document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
-        }
-
-        genericMessage(false);
-
-    } else {
-        if(document.getElementById("login_error") !== null) {
-            document.getElementById("login_error").parentNode.removeChild(document.getElementById("login_error"));
-        }
-    }
-}
-
-checkLoginAttempts();
