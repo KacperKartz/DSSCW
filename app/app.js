@@ -2,22 +2,34 @@ const express = require('express');
 const { auth } = require('express-openid-connect');
 const dotenv = require('dotenv');
 const app = express();
-const port = 3000;
-require('dotenv').config();
-const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
-
-
-dotenv.config();
-
 var bodyParser = require('body-parser');
 const fs = require('fs');
 const { Client } = require('pg');
 const { title } = require('process');
+const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
+
+
+require('dotenv').config();
+dotenv.config();
+
+https = require('https');
+var options = {
+    key: fs.readFileSync('./https/privkey.pem'),
+    cert: fs.readFileSync('./https/fullchain.pem'),
+};
+
+https.createServer(options, app).listen(443, () => {
+    console.log(`Server running at https://localhost:443/`);
+});
+
+
+
+
+
 
 
 
 app.use(express.static(__dirname + '/public'));
-
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
