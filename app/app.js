@@ -11,7 +11,7 @@ const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption
 
 require('dotenv').config();
 dotenv.config();
-
+port = 3000;
 https = require('https');
 var options = {
     key: fs.readFileSync('./https/privkey.pem'),
