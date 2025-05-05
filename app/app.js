@@ -259,5 +259,29 @@ app.post('/makepost', async(req, res) => {
 
  https.createServer(options, app).listen(443, () => {
     console.log(`Server running at https://localhost:443/`);
-    client.connect().then(() => console.log('Database Connected'));
+    client.connect().then(() => {
+        console.log('db: Database Connected');
+        
+        // Create tables here if they don't exist (bigtbl didnt exist for me)
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS blgtbl (
+                id SERIAL PRIMARY KEY,
+                usrid INT,
+                blgtitle VARCHAR(255),
+                blgcont TEXT,
+                blgauth VARCHAR(255),
+                blgdate TIMESTAMP
+            );
+        `;
+        
+        client.query(createTableQuery, (err, res) => {
+            if (err) {
+                console.error('db: bigtbl not available, error creating table', err);
+            } else {
+                console.log('db: bigtbl available');
+            }
+        });
+    }).catch((err) => {
+        console.error('db: Error connecting to the database, is it online? Error:', err);
+    });
 });
