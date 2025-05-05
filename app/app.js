@@ -259,4 +259,5 @@ app.post('/makepost', async(req, res) => {
 
  https.createServer(options, app).listen(443, () => {
     console.log(`Server running at https://localhost:443/`);
+    client.connect().then(() => console.log('Database Connected'));
 });
