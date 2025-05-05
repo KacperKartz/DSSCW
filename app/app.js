@@ -11,23 +11,12 @@ const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption
 
 require('dotenv').config();
 dotenv.config();
-port = 3000;
+port = 443;
 https = require('https');
 var options = {
     key: fs.readFileSync('./https/privkey.pem'),
     cert: fs.readFileSync('./https/fullchain.pem'),
 };
-
-https.createServer(options, app).listen(443, () => {
-    console.log(`Server running at https://localhost:443/`);
-});
-
-
-
-
-
-
-
 
 app.use(express.static(__dirname + '/public'));
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -37,7 +26,7 @@ app.use(bodyParser.json());
 const config = {
     authRequired: false,
     auth0Logout: true,
-    baseURL: 'http://localhost:3000',
+    baseURL: 'https://localhost:443',
     clientID: process.env.CLIENT_ID,
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     secret: process.env.SECRET
@@ -268,8 +257,6 @@ app.post('/makepost', async(req, res) => {
     res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
-app.listen(port, () => {
-    console.log(`My app listening on port ${port}! ${config.baseURL}`)
-
-    client.connect().then(console.log('Database Connected'));
+ https.createServer(options, app).listen(443, () => {
+    console.log(`Server running at https://localhost:443/`);
 });
