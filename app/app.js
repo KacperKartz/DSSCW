@@ -120,63 +120,73 @@ const mfaCodeStore = {}; // key: email, value: code
 // Theres a hardcoded email and password for testing purposes (maybe for the demo too?!?!?)
 // Sets the session.user email to carry it through the rest of the app
 // TODO: Add database integration
-app.post('/validateLogin',loginLimiter, (req, res) => {
+app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
     console.log(email, password);
 
-
+    // Makes sure all fields are filled
     if(!email || !password){
         return res.status(400).json({error: 'Please enter both email and password'});
     }
-
+    // Makes sure an email is entered
     if(!email.includes('@') || !email.includes('.')){
-        return res.status(400).json({error: 'Incorrect credentials '});
+        return res.status(400).json({error: 'Incorrect credentials'});
     }
 
 
     
-    /// For the sake of testing
+    /// For the sake of testing || Hard coded version
 
 
 
-        if(email === "username@test.com" && password === "password"){
-            const mfaCode = generateRandomSixDigitCode();
-            mfaCodeStore[email] = mfaCode;
-            console.log(mfaCodeStore);
-            console.log(mfaCode);
+        // if(email === "username@test.com" && password === "password"){
+        //     const mfaCode = generateRandomSixDigitCode();
+        //     mfaCodeStore[email] = mfaCode;
+        //     console.log(mfaCodeStore);
+        //     console.log(mfaCode);
 
-            req.session.user = {
-                email: email,
-                authenticated: false
-            };
+        //     req.session.user = {
+        //         email: email,
+        //         authenticated: false
+        //     };
             
-            return res.status(200).json({message: 'Login successful', email});;
-        }
+        //     return res.status(200).json({message: 'Login successful', email});;
+        // }
         
         //// use the stuff below for when we have database integration        
 
 
 
 
-        
-        const query = `SELECT * FROM users WHERE email = $1`;
-        client.query(query, [email], (err, result) => {
-            
+        // Below we query the database to find if the user exists and if they do we compare the credentials, this needs to be encrypted
+        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
+        client.query(query, (err, result) => {
             if(err || !result.rows.length){
-                /// Dummy hash to simulate going through the verification
+                // Dummy hash to simulate going through the verification
                 
                 const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
                 verifyPassword(password, dummyHash, dummyHash);
                 return res.status(401).json({error: 'Incorrect credentials'});
             }
         
-                
-
                 /// Below are the actual checks
                 
                 const user = result.rows[0];
-                const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-                
+                // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
+                console.log("this" + user.usrpass)
+
+
+                //this is a temp bypass for testing || While the encryption is not set up
+                var isPasswordValid;
+                if (password === user.usrpass)
+                {
+                    isPasswordValid = true;
+                }
+                else
+                {
+                    isPasswordValid = false;
+                }
+
                 if(!isPasswordValid){
                     return res.status(401).json({error: 'Incorrect credentials'});
                 }else{
@@ -187,6 +197,7 @@ app.post('/validateLogin',loginLimiter, (req, res) => {
                         email: email,
                         authenticated: false
                     };
+                    console.log("this is the req.session.user "+ req.session.user.email)
                     return res.status(200).json({message: 'Login successful'});
                 }
             });
@@ -209,14 +220,47 @@ app.get('/mfaPage', (req, res) => {
     })
 })
 
+app.post('/registerSubmit',  async (req, res) => {
+
+    const {email, password} = req.body;
+    console.log(email, password);
+
+    // Basic checks to see if all required data has been provided
+    try{
+        if(!email || !password){
+            return res.status(400).json({error: 'Please enter both email and password'});
+        }
+    
+        if(!email.includes('@') || !email.includes('.')){
+            return res.status(400).json({error: 'Please enter a suitable email'});
+        }
+
+        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
+        const existCheck = await client.query(query);
+    // Makes sure that this user does not already exist
+        if (!existCheck)
+        {
+            // Adds the new user to the database
+            const createUsr = (`INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ('${email}','${password}','${email}')`)
+            client.query(createUsr);
+        }
+
+    } catch (err) {
+        console.log(err);
+    };
+
+    res.redirect('/')
+
+
+})
 
 // MFA validation
 // Just grabs the users email and mfa code
 // Checks if the code matches the expected code which they got through email (aka console)
 // If it does, sets authenticated to true and in frontend they get redirected (yay)
 
-app.post('/mfa', (req, res) => {
-    
+app.post('/mfa', async (req, res) => {
+    // Currently this does not seem to work as the email is not being stored in the session storage for some reason
     const { email, mfaUserCode } = req.body;   
     console.log(mfaCodeStore);
     console.log(email, mfaUserCode);
@@ -224,7 +268,6 @@ app.post('/mfa', (req, res) => {
     if (!email || !mfaUserCode) {
         return res.status(400).json({ error: 'Missing email or MFA code' });
     }
-
    const expectedCode = mfaCodeStore[email];
 
     if(expectedCode && mfaUserCode === expectedCode){
@@ -285,7 +328,7 @@ app.post('/query/getPosts', async(req, res) => {
 })
 
 app.post('/query/getMyPosts', async(req, res) => {
-    console.log(req.oidc.user.nickname);
+    // console.log(req.oidc.user.nickname);
     const user = req.oidc.user.nickname
     const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = " + "'" + user + "'");
     res.send(result.rows);
