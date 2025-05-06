@@ -154,7 +154,9 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                 return res.status(401).json({error: 'Incorrect credentials'});
             }else{
                 const mfaCode = generateRandomSixDigitCode();
-                mfaCodeStore[email] = mfaCode;
+                const expirationTime = Date.now() + 1 * 60 * 1000;
+                console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
+                mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
                 console.log(mfaCode);
                 req.session.user = {
                     username: user.usrnme,
@@ -185,12 +187,51 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
         // }
         
         //// use the stuff below for when we have database integration        
+        
+        
+        
+    });
+app.post('/mfa', async (req, res) => {
 
+    if (!req.session.user || !req.session.user.email) {
+        return res.status(401).json({ error: 'Session expired or unauthorized' });
+    }
 
+    
+    const { mfaUserCode } = req.body;
+    const email = req.session.user.email;
+    const mfaEntry = mfaCodeStore[email];
 
-});
+    if (!email || !mfaUserCode) {
+        return res.status(400).json({ error: 'Missing email or MFA code' });
+    }
 
+    if (!mfaEntry) {
+        return res.status(401).json({ error: 'MFA code expired or not found' });
+    }
+    console.log(mfaCodeStore);
+    console.log(email, mfaUserCode);
+
+    const { code: expectedCode, expiresAt } = mfaEntry;
+
+    if (Date.now() > expiresAt) {
+        delete mfaCodeStore[email];
+        return res.status(401).json({ error: 'MFA code expired' });
+    }
+
+    if(expectedCode && mfaUserCode === expectedCode){
+        delete mfaCodeStore[email];
+        req.session.user.authenticated = true;
+        return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
+        
+    }else{
+        return res.status(401).json({error: 'Incorrect MFA code'});
+    }
+
+})
+    
 function generateRandomSixDigitCode() {
+
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
@@ -231,6 +272,10 @@ app.post('/registerSubmit',  async (req, res) => {
         }
         
 
+        if(password.length < 8){
+            return res.status(400).json({error: 'Password must be at least 8 characters long'});
+        }
+
         // Makes sure that this user does not already exist
         const checkQuery = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
         const existCheck = await client.query(checkQuery);
@@ -266,34 +311,6 @@ app.post('/registerSubmit',  async (req, res) => {
 // Checks if the code matches the expected code which they got through email (aka console)
 // If it does, sets authenticated to true and in frontend they get redirected (yay)
 
-app.post('/mfa', async (req, res) => {
-
-    if (!req.session.user || !req.session.user.email) {
-        return res.status(401).json({ error: 'Session expired or unauthorized' });
-    }
-
-    
-
-    const { mfaUserCode } = req.body;
-    const email = req.session.user.email;
-
-    if (!email || !mfaUserCode) {
-        return res.status(400).json({ error: 'Missing email or MFA code' });
-    }
-    console.log(mfaCodeStore);
-    console.log(email, mfaUserCode);
-   const expectedCode = mfaCodeStore[email];
-
-    if(expectedCode && mfaUserCode === expectedCode){
-        delete mfaCodeStore[email];
-        req.session.user.authenticated = true;
-        return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
-        
-    }else{
-        return res.status(401).json({error: 'Incorrect MFA code'});
-    }
-
-})
 
 
 
@@ -426,7 +443,7 @@ app.post('/makepost', async(req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
 
-        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${ req.body.content_field}', '${res.locals.user.nickname}', '${curDate}')`);
+        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${ req.body.content_field}', '${res.session.user.username}', '${curDate}')`);
     }
     catch (err)
     {

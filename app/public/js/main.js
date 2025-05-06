@@ -2,7 +2,7 @@
 async function displayUsername() {
     const response = await fetch("/api/user");
     const user_data = await response.json();
-    console.log(user_data);
+    // console.log(user_data);
 
     document.querySelector("#login_link").textContent = user_data.username;
 }
