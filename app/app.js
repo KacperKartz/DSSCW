@@ -198,7 +198,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                         authenticated: false
                     };
                     console.log("this is the req.session.user "+ req.session.user.email)
-                    return res.status(200).json({message: 'Login successful'});
+                    return res.status(200).json({message: 'Login successful', email});
                 }
             });
 
@@ -313,8 +313,8 @@ app.get('/my_posts', (req, res) => {
 
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
 app.get('/api/user', (req, res) => {
-    if (req.oidc && req.oidc.isAuthenticated()) {
-        res.json(req.oidc.user);
+    if (req.session.user && req.session.user.authenticated === true) {
+        res.json(req.session.user);
     } else {
         res.status(401).json({ error: 'Not authenticated' });
     }
