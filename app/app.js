@@ -345,7 +345,7 @@ app.post('/query/getPosts', async(req, res) => {
 app.post('/query/getMyPosts', async(req, res) => {
     // console.log(req.oidc.user.nickname);
     const user = req.session.user.username;
-    const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = " + "'" + user + "'");
+    const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = $1", [user]);
     res.send(result.rows);
 })
 // // Reset login_attempt.json when server restarts
