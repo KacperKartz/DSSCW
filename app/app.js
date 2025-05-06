@@ -38,12 +38,12 @@ const client = new Client({
     database: process.env.DATABASE_NAME
 })
 
-app.use(auth(config));
-// Middleware to make the `user` object available for all views
-app.use(function (req, res, next) {
-    res.locals.user = req.oidc.user;
-    next();
-});
+// app.use(auth(config));
+// // Middleware to make the `user` object available for all views
+// app.use(function (req, res, next) {
+//     res.locals.user = req.oidc.user;
+//     next();
+// });
 
 app.use(session({
     secret: process.env.SECRET,
@@ -172,49 +172,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
 
 
 
-        // Below we query the database to find if the user exists and if they do we compare the credentials, this needs to be encrypted
-        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
-        client.query(query, (err, result) => {
-            if(err || !result.rows.length){
-                // Dummy hash to simulate going through the verification
-                
-                const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
-                verifyPassword(password, dummyHash, dummyHash);
-                return res.status(401).json({error: 'Incorrect credentials'});
-            }
-        
-                /// Below are the actual checks
-                
-                const user = result.rows[0];
-                // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-                console.log("this" + user.usrpass)
-
-
-                //this is a temp bypass for testing || While the encryption is not set up
-                var isPasswordValid;
-                if (password === user.usrpass)
-                {
-                    isPasswordValid = true;
-                }
-                else
-                {
-                    isPasswordValid = false;
-                }
-
-                if(!isPasswordValid){
-                    return res.status(401).json({error: 'Incorrect credentials'});
-                }else{
-                    const mfaCode = generateRandomSixDigitCode();
-                    mfaCodeStore[email] = mfaCode;
-                    console.log(mfaCode);
-                    req.session.user = {
-                        email: email,
-                        authenticated: false
-                    };
-                    console.log("this is the req.session.user "+ req.session.user.email)
-                    return res.status(200).json({message: 'Login successful', email});
-                }
-            });
 
 
 
@@ -292,7 +249,6 @@ app.post('/registerSubmit',  async (req, res) => {
 // If it does, sets authenticated to true and in frontend they get redirected (yay)
 
 app.post('/mfa', async (req, res) => {
-    // Currently this does not seem to work as the email is not being stored in the session storage for some reason
     const { email, mfaUserCode } = req.body;   
     console.log(mfaCodeStore);
     console.log(email, mfaUserCode);
@@ -313,6 +269,8 @@ app.post('/mfa', async (req, res) => {
     }
 
 })
+
+
 
 
 // Landing page
