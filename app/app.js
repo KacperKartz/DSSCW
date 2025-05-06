@@ -30,6 +30,7 @@ const config = {
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     secret: process.env.SECRET
 };
+
 const client = new Client({
     host: process.env.DATABASE_IP,
     user: process.env.DATABASE_USER,
@@ -38,12 +39,12 @@ const client = new Client({
     database: process.env.DATABASE_NAME
 })
 
-app.use(auth(config));
+// app.use(auth(config));
 // Middleware to make the `user` object available for all views
-app.use(function (req, res, next) {
-    res.locals.user = req.oidc.user;
-    next();
-});
+// app.use(function (req, res, next) {
+//     res.locals.user = req.oidc.user;
+//     next();
+// });
 
 app.use(session({
     secret: process.env.SECRET,
@@ -119,7 +120,21 @@ const mfaCodeStore = {}; // key: email, value: code
 // Checks if its all good and sends back a message
 // Theres a hardcoded email and password for testing purposes (maybe for the demo too?!?!?)
 // Sets the session.user email to carry it through the rest of the app
-// TODO: Add database integration
+
+app.get('/logout', async(req,res) => 
+    {
+
+        req.session.destroy(err => {
+            if (err){
+                console.log(err);
+                return res.status(500).send("error logging out");
+            }
+            res.clearCookie('connect.sid');
+            res.redirect('/');
+        });
+    }
+)
+
 app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
     console.log(email, password);
@@ -159,8 +174,9 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
 
 
         // Below we query the database to find if the user exists and if they do we compare the credentials, this needs to be encrypted
-        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
-        client.query(query, (err, result) => {
+        const query = ('SELECT * FROM usrtbl WHERE usremail = $1');
+
+        client.query(query, [email], (err, result) => {
             if(err || !result.rows.length){
                 // Dummy hash to simulate going through the verification
                 
@@ -173,7 +189,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                 
                 const user = result.rows[0];
                 // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-                console.log("this" + user.usrpass)
+                console.log("this is the user password: " + user.usrpass)
 
 
                 //this is a temp bypass for testing || While the encryption is not set up
@@ -195,7 +211,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                     console.log(mfaCode);
                     req.session.user = {
                         email: email,
-                        authenticated: false
+                        authenticated: false,
                     };
                     console.log("this is the req.session.user "+ req.session.user.email)
                     return res.status(200).json({message: 'Login successful', email});
@@ -213,11 +229,16 @@ function generateRandomSixDigitCode() {
 
 // MFA page route
 app.get('/mfaPage', (req, res) => {
-    res.sendFile(__dirname + '/public/html/mfa.html', (err) => {
-        if (err){
-            console.log(err);
-        }
-    })
+    if(req.session.user && req.session.user.email){
+        res.sendFile(__dirname + '/public/html/mfa.html', (err) => {
+            if (err){
+                console.log(err);
+            }
+        })
+    }else{
+        res.redirect('/')
+
+    }
 })
 
 app.post('/registerSubmit',  async (req, res) => {
@@ -272,9 +293,9 @@ app.post('/mfa', async (req, res) => {
 
     if(expectedCode && mfaUserCode === expectedCode){
         delete mfaCodeStore[email];
-        // req.session.user = { email };  ////// will want to add user id
+        req.session.user.username = "USername"; /// change to username or something like that
         req.session.user.authenticated = true;
-        return res.status(200).json({ message: 'MFA successful' }) 
+        return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
         
     }else{
         return res.status(401).json({error: 'Incorrect MFA code'});
@@ -314,11 +335,11 @@ app.get('/my_posts', (req, res) => {
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
 app.get('/api/user', (req, res) => {
     if (req.session.user && req.session.user.authenticated === true) {
-        res.json(req.session.user);
-    } else {
-        res.status(401).json({ error: 'Not authenticated' });
+        return res.json({username:req.session.user.username});
     }
+    res.status(401).json({ error: 'Not authenticated' });
 });
+
 
 app.post('/query/getPosts', async(req, res) => {
 

@@ -33,8 +33,8 @@ form.addEventListener('submit', async (e) => {
             if(response.ok){
                /// Correct login
                console.log(data.email);
-               sessionStorage.setItem('email', data.email);
-                window.location.href = '/mfaPage';
+            //    sessionStorage.setItem('email', data.email);
+               window.location.href = '/mfaPage';
             }
             else{
                 alert(data.error);

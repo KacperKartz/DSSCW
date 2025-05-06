@@ -19,6 +19,7 @@ form.addEventListener('submit', async (e) => {
     // If the server likes it then it sends back a 200
     // Despite liking it, We do infact part ways with the email on the client side. (idk if this is right or not but hey it works)
     if (res.ok) {
+
         sessionStorage.removeItem('email');
         window.location.href = '/';
     } else {
