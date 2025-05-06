@@ -90,27 +90,6 @@ app.get('/register', (req, res) => {
     })
 });
 
-app.post('/registerUser', (req, res) => {
-    const {email, password} = req.query;
-    console.log(email, password);
-    if(!email || !password){
-        return res.status(400).json({error: 'Please enter both email and password'});
-    }
-
-    if(!email.includes('@') || !email.includes('.')){
-        return res.status(400).json({error: 'Incorrect credentials '});
-    }
-
-    const hashedPassword = hashPassword(password);
-    const encryptedPassword = encrypt(hashedPassword.hash);
-    const encryptedSalt = encrypt(hashedPassword.salt);
-
-
-    // Throw in the query
-
-
-})
-
 /// Server side verification
 const mfaCodeStore = {}; // key: email, value: code
 
@@ -123,6 +102,8 @@ const mfaCodeStore = {}; // key: email, value: code
 app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
     console.log(email, password);
+    // Forces entered email to lowercase
+    let emailLC = email.toLowerCase();
 
     // Makes sure all fields are filled
     if(!email || !password){
@@ -132,8 +113,41 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     if(!email.includes('@') || !email.includes('.')){
         return res.status(400).json({error: 'Incorrect credentials'});
     }
+    
+    const query = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
+    client.query(query, (err, result) => {
 
+        if(err || !result.rows.length){
+            // Dummy hash to simulate going through the verification || Dont think this does anything rn
+            
+            const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
+            verifyPassword(password, dummyHash, dummyHash);
+            return res.status(401).json({error: 'Incorrect credentials'});
+        }
+            /// Below are the actual checks
+            
+            const user = result.rows[0];
+            // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
+            console.log("this" + user.usrpass)
 
+            //this is a temp bypass for testing || While the encryption is not set up
+            var isPasswordValid = false;
+            if (password === user.usrpass) {isPasswordValid = true;}
+
+            if(!isPasswordValid){
+                return res.status(401).json({error: 'Incorrect credentials'});
+            }else{
+                const mfaCode = generateRandomSixDigitCode();
+                mfaCodeStore[email] = mfaCode;
+                console.log(mfaCode);
+                req.session.user = {
+                    email: emailLC,
+                    authenticated: false
+                };
+                // console.log("this is the req.session.user "+ req.session.user.email)
+                return res.status(200).json({message: 'Login successful'});
+            }
+        });
     
     /// For the sake of testing || Hard coded version
 
@@ -159,48 +173,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
 
 
         // Below we query the database to find if the user exists and if they do we compare the credentials, this needs to be encrypted
-        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
-        client.query(query, (err, result) => {
-            if(err || !result.rows.length){
-                // Dummy hash to simulate going through the verification
-                
-                const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
-                verifyPassword(password, dummyHash, dummyHash);
-                return res.status(401).json({error: 'Incorrect credentials'});
-            }
-        
-                /// Below are the actual checks
-                
-                const user = result.rows[0];
-                // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-                console.log("this" + user.usrpass)
-
-
-                //this is a temp bypass for testing || While the encryption is not set up
-                var isPasswordValid;
-                if (password === user.usrpass)
-                {
-                    isPasswordValid = true;
-                }
-                else
-                {
-                    isPasswordValid = false;
-                }
-
-                if(!isPasswordValid){
-                    return res.status(401).json({error: 'Incorrect credentials'});
-                }else{
-                    const mfaCode = generateRandomSixDigitCode();
-                    mfaCodeStore[email] = mfaCode;
-                    console.log(mfaCode);
-                    req.session.user = {
-                        email: email,
-                        authenticated: false
-                    };
-                    console.log("this is the req.session.user "+ req.session.user.email)
-                    return res.status(200).json({message: 'Login successful'});
-                }
-            });
 
 
 
@@ -222,9 +194,15 @@ app.get('/mfaPage', (req, res) => {
 
 app.post('/registerSubmit',  async (req, res) => {
 
-    const {email, password} = req.body;
-    console.log(email, password);
+    const {username, email, password} = req.body;
+    // console.log(username, email, password); // This is for testing
+    // sets the email
+    let emailLC = email.toLowerCase();
 
+    // These are not being used rn
+    // const hashedPassword = hashPassword(password);
+    // const encryptedPassword = encrypt(hashedPassword.hash);
+    // const encryptedSalt = encrypt(hashedPassword.salt);
     // Basic checks to see if all required data has been provided
     try{
         if(!email || !password){
@@ -234,15 +212,27 @@ app.post('/registerSubmit',  async (req, res) => {
         if(!email.includes('@') || !email.includes('.')){
             return res.status(400).json({error: 'Please enter a suitable email'});
         }
+        
 
-        const query = `SELECT * FROM usrtbl WHERE usremail = '${email}'`;
-        const existCheck = await client.query(query);
-    // Makes sure that this user does not already exist
-        if (!existCheck)
+        // Makes sure that this user does not already exist
+        const checkQuery = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
+        const existCheck = await client.query(checkQuery);
+
+        let taken = false;
+		for (i = 0; i < existCheck.rows.length; i++) {
+			if (existCheck.rows[i].usremail === emailLC) { taken = true; console.log("User Exists"); break; }
+		}
+
+        if (!taken)
         {
             // Adds the new user to the database
-            const createUsr = (`INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ('${email}','${password}','${email}')`)
+            const createUsr = (`INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ('${username}','${password}','${emailLC}')`)
             client.query(createUsr);
+            return res.status(200).json({message: 'User Registered'})
+        }
+        else
+        {
+            return res.status(400).json({error: 'User already exists'}) // This is a bad message
         }
 
     } catch (err) {
