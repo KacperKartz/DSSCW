@@ -10,6 +10,7 @@ form.addEventListener('submit', async (e) => {
 
     const email = usernameInput.value.trim();
     const password = passwordInput.value.trim();
+    let username = email.split('@')[0];
 
     if(!email || !password){
         alert('Please enter both email and password');
@@ -18,7 +19,7 @@ form.addEventListener('submit', async (e) => {
             // throws the email and password to the server 
            const response = await fetch('/registerSubmit', {
                 method: 'POST',
-                body: JSON.stringify({email, password}),
+                body: JSON.stringify({username, email, password}),
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -30,6 +31,7 @@ form.addEventListener('submit', async (e) => {
             if(response.ok){
                /// Correct login
                console.log(data.email);
+               window.location.href = '/';
             }
             else{
                 alert(data.error);
@@ -45,3 +47,4 @@ form.addEventListener('submit', async (e) => {
 
 
 })
+
