@@ -39,12 +39,12 @@ const client = new Client({
     database: process.env.DATABASE_NAME
 })
 
-app.use(auth(config));
-// Middleware to make the `user` object available for all views
-app.use(function (req, res, next) {
-    res.locals.user = req.oidc.user;
-    next();
-});
+// app.use(auth(config));
+// // Middleware to make the `user` object available for all views
+// app.use(function (req, res, next) {
+//     res.locals.user = req.oidc.user;
+//     next();
+// });
 
 app.use(session({
     secret: process.env.SECRET,
@@ -129,8 +129,8 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
         return res.status(400).json({error: 'Incorrect credentials'});
     }
     
-    const query = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
-    client.query(query, (err, result) => {
+    const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
+    client.query(query, [email], (err, result) => {
 
         if(err || !result.rows.length){
             // Dummy hash to simulate going through the verification || Dont think this does anything rn
@@ -143,7 +143,8 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             
             const user = result.rows[0];
             // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-            console.log("this" + user.usrpass)
+            console.log("username: " + user.usrnme);
+            console.log("password: " + user.usrpass);
 
             //this is a temp bypass for testing || While the encryption is not set up
             var isPasswordValid = false;
@@ -156,6 +157,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                 mfaCodeStore[email] = mfaCode;
                 console.log(mfaCode);
                 req.session.user = {
+                    username: user.usrnme,
                     email: emailLC,
                     authenticated: false
                 };
@@ -183,54 +185,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
         // }
         
         //// use the stuff below for when we have database integration        
-
-
-
-
-        // Below we query the database to find if the user exists and if they do we compare the credentials, this needs to be encrypted
-        const query = ('SELECT * FROM usrtbl WHERE usremail = $1');
-
-        client.query(query, [email], (err, result) => {
-            if(err || !result.rows.length){
-                // Dummy hash to simulate going through the verification
-                
-                const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
-                verifyPassword(password, dummyHash, dummyHash);
-                return res.status(401).json({error: 'Incorrect credentials'});
-            }
-        
-                /// Below are the actual checks
-                
-                const user = result.rows[0];
-                // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-                console.log("this is the user password: " + user.usrpass)
-
-
-                //this is a temp bypass for testing || While the encryption is not set up
-                var isPasswordValid;
-                if (password === user.usrpass)
-                {
-                    isPasswordValid = true;
-                }
-                else
-                {
-                    isPasswordValid = false;
-                }
-
-                if(!isPasswordValid){
-                    return res.status(401).json({error: 'Incorrect credentials'});
-                }else{
-                    const mfaCode = generateRandomSixDigitCode();
-                    mfaCodeStore[email] = mfaCode;
-                    console.log(mfaCode);
-                    req.session.user = {
-                        email: email,
-                        authenticated: false,
-                    };
-                    console.log("this is the req.session.user "+ req.session.user.email)
-                    return res.status(200).json({message: 'Login successful', email});
-                }
-            });
 
 
 
@@ -313,18 +267,25 @@ app.post('/registerSubmit',  async (req, res) => {
 // If it does, sets authenticated to true and in frontend they get redirected (yay)
 
 app.post('/mfa', async (req, res) => {
-    const { email, mfaUserCode } = req.body;   
-    console.log(mfaCodeStore);
-    console.log(email, mfaUserCode);
+
+    if (!req.session.user || !req.session.user.email) {
+        return res.status(401).json({ error: 'Session expired or unauthorized' });
+    }
+
+    
+
+    const { mfaUserCode } = req.body;
+    const email = req.session.user.email;
 
     if (!email || !mfaUserCode) {
         return res.status(400).json({ error: 'Missing email or MFA code' });
     }
+    console.log(mfaCodeStore);
+    console.log(email, mfaUserCode);
    const expectedCode = mfaCodeStore[email];
 
     if(expectedCode && mfaUserCode === expectedCode){
         delete mfaCodeStore[email];
-        req.session.user.username = "USername"; /// change to username or something like that
         req.session.user.authenticated = true;
         return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
         
@@ -339,7 +300,7 @@ app.post('/mfa', async (req, res) => {
 
 // Landing page
 app.get('/posts', (req, res) => {
-    if (!req.oidc || !req.oidc.isAuthenticated()) {
+    if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view posts.' });
     }
 
@@ -352,7 +313,7 @@ app.get('/posts', (req, res) => {
 
 // Landing page
 app.get('/my_posts', (req, res) => {
-    if (!req.oidc || !req.oidc.isAuthenticated()) {
+    if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
 
@@ -383,7 +344,7 @@ app.post('/query/getPosts', async(req, res) => {
 
 app.post('/query/getMyPosts', async(req, res) => {
     // console.log(req.oidc.user.nickname);
-    const user = req.oidc.user.nickname
+    const user = req.session.user.username;
     const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = " + "'" + user + "'");
     res.send(result.rows);
 })
@@ -461,7 +422,7 @@ app.post('/makepost', async(req, res) => {
     let curDate = new Date();
     curDate = curDate.toLocaleString("en-GB");
     try {
-        if (!req.oidc || !req.oidc.isAuthenticated()) {
+        if (!req.session.user || req.session.user.isAuthenticated == false) {
             return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
 
@@ -513,7 +474,7 @@ app.post('/makepost', async(req, res) => {
  // Delete a post POST request
  app.post('/deletepost', (req, res) => {
 
-    if (!req.oidc || !req.oidc.isAuthenticated()) {
+    if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
     }
 
