@@ -2,22 +2,23 @@ const express = require('express');
 const { auth } = require('express-openid-connect');
 const dotenv = require('dotenv');
 const app = express();
-const port = 3000;
-require('dotenv').config();
-const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
-
-
-dotenv.config();
-
 var bodyParser = require('body-parser');
 const fs = require('fs');
 const { Client } = require('pg');
 const { title } = require('process');
+const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
 
 
+require('dotenv').config();
+dotenv.config();
+port = 443;
+https = require('https');
+var options = {
+    key: fs.readFileSync('./https/privkey.pem'),
+    cert: fs.readFileSync('./https/fullchain.pem'),
+};
 
 app.use(express.static(__dirname + '/public'));
-
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
@@ -25,7 +26,7 @@ app.use(bodyParser.json());
 const config = {
     authRequired: false,
     auth0Logout: true,
-    baseURL: 'http://localhost:3000',
+    baseURL: 'https://localhost:443',
     clientID: process.env.CLIENT_ID,
     issuerBaseURL: process.env.ISSUER_BASE_URL,
     secret: process.env.SECRET
@@ -256,8 +257,31 @@ app.post('/makepost', async(req, res) => {
     res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
-app.listen(port, () => {
-    console.log(`My app listening on port ${port}! ${config.baseURL}`)
-
-    client.connect().then(console.log('Database Connected'));
+ https.createServer(options, app).listen(443, () => {
+    console.log(`Server running at https://localhost:443/`);
+    client.connect().then(() => {
+        console.log('db: Database Connected');
+        
+        // Create tables here if they don't exist (bigtbl didnt exist for me)
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS blgtbl (
+                id SERIAL PRIMARY KEY,
+                usrid INT,
+                blgtitle VARCHAR(255),
+                blgcont TEXT,
+                blgauth VARCHAR(255),
+                blgdate TIMESTAMP
+            );
+        `;
+        
+        client.query(createTableQuery, (err, res) => {
+            if (err) {
+                console.error('db: bigtbl not available, error creating table', err);
+            } else {
+                console.log('db: bigtbl available');
+            }
+        });
+    }).catch((err) => {
+        console.error('db: Error connecting to the database, is it online? Error:', err);
+    });
 });
