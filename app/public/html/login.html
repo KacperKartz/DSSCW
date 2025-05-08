@@ -14,15 +14,24 @@
         </header>
         <main>
         <p>Please log in to continue.</p>
+<!-- 
+        <form action="/login">
+            <h4>Login using Auth0</h4>
+            <button type="submit">Log in</button>
+        </form> -->
 
-        <form method="get" action="/login" id="login_form">
-            <!-- <label for="username_input">Email:</label>
-            <input type="email" id="username_input" name="username_input" placeholder="Please enter your email...">
+
+
+        <form method="post"  id="login_form">
+            <label for="username_input">Email:</label>
+            <input type="email" id="username_input" name="username_input" placeholder="Please enter your email..." required>
 
             <label for="password_input">Password:</label>
-            <input type="password" id="password_input" name="password_input" placeholder="Please enter your password..."> -->
+            <input type="password" id="password_input" autocomplete="off" name="password_input" placeholder="Please enter your password..." required>
 
+            
             <button id="login_btn" type="submit">Log in</button>
+            <a href="/register" class="button">Register</a>
         </form>
         </main>
     </body>

@@ -1,10 +1,8 @@
-const form = document.getElementById('login_form');
+const form = document.getElementById('register_form');
 const usernameInput = document.getElementById('username_input');
 const passwordInput = document.getElementById('password_input');
 
 
-
-/// Good ol' login stuff.
 
 
 form.addEventListener('submit', async (e) => {
@@ -12,16 +10,16 @@ form.addEventListener('submit', async (e) => {
 
     const email = usernameInput.value.trim();
     const password = passwordInput.value.trim();
+    let username = email.split('@')[0];
 
-    // Could make it do some more checks to be fair
     if(!email || !password){
         alert('Please enter both email and password');
     }else{
         try{
             // throws the email and password to the server 
-           const response = await fetch('/validateLogin', {
+           const response = await fetch('/registerSubmit', {
                 method: 'POST',
-                body: JSON.stringify({email, password}),
+                body: JSON.stringify({username, email, password}),
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -33,8 +31,7 @@ form.addEventListener('submit', async (e) => {
             if(response.ok){
                /// Correct login
                console.log(data.email);
-            //    sessionStorage.setItem('email', data.email);
-               window.location.href = '/mfaPage';
+               window.location.href = '/';
             }
             else{
                 alert(data.error);
@@ -47,6 +44,7 @@ form.addEventListener('submit', async (e) => {
         }
 
     }
-})
 
+
+})
 
