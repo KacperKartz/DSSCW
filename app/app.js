@@ -1,38 +1,19 @@
 const express = require('express');
-const { auth } = require('express-openid-connect');
+const session = require('express-session');
 const dotenv = require('dotenv');
 const app = express();
 const { Client } = require('pg');
-const { title } = require('process');
 const fs = require('fs');
+const https = require('https');
 const rateLimit = require('express-rate-limit');
+const bodyParser = require('body-parser');
 const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
 
-require('dotenv').config();
+const port = 443;
 
-
-dotenv.config()
-var bodyParser = require('body-parser');
-app.use(express.static(__dirname + '/public'));
-const session = require('express-session');
-port = 443;
-https = require('https');
-var options = {
+const httpsOptions = {
     key: fs.readFileSync('./https/privkey.pem'),
     cert: fs.readFileSync('./https/fullchain.pem'),
-};
-
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
-
-const config = {
-    authRequired: false,
-    auth0Logout: true,
-    baseURL: 'https://localhost:443',
-    clientID: process.env.CLIENT_ID,
-    issuerBaseURL: process.env.ISSUER_BASE_URL,
-    secret: process.env.SECRET
 };
 
 const client = new Client({
@@ -41,7 +22,14 @@ const client = new Client({
     port: process.env.DATABASE_PORT,
     password: process.env.DATABASE_PASSWORD,
     database: process.env.DATABASE_NAME
-})
+});
+
+require('dotenv').config();
+dotenv.config()
+
+app.use(express.static(__dirname + '/public'));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
 app.use(session({
     secret: process.env.SECRET,
@@ -124,7 +112,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             const user = result.rows[0];
             // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
             console.log("username: " + user.usrnme);
-            console.log("password: " + user.usrpass);
+            console.log("password: " + "*********");
 
             //this is a temp bypass for testing || While the encryption is not set up
             var isPasswordValid = false;
@@ -366,8 +354,8 @@ app.post('/makepost', async(req, res) => {
     res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
- https.createServer(options, app).listen(443, () => {
-    console.log(`Server running at https://localhost:443/`);
+ https.createServer(httpsOptions, app).listen(port, () => {
+    console.log(`Server running at https://localhost:${port}/`);
     client.connect().then(() => {
         console.log('db: Database Connected');
         
