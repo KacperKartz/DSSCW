@@ -1,39 +1,19 @@
 const express = require('express');
-const { auth } = require('express-openid-connect');
+const session = require('express-session');
 const dotenv = require('dotenv');
 const app = express();
 const { Client } = require('pg');
-const { title } = require('process');
 const fs = require('fs');
-const port = 3000;
+const https = require('https');
 const rateLimit = require('express-rate-limit');
+const bodyParser = require('body-parser');
 const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
 
-require('dotenv').config();
+const port = 443;
 
-
-dotenv.config()
-var bodyParser = require('body-parser');
-app.use(express.static(__dirname + '/public'));
-const session = require('express-session');
-port = 443;
-https = require('https');
-var options = {
+const httpsOptions = {
     key: fs.readFileSync('./https/privkey.pem'),
     cert: fs.readFileSync('./https/fullchain.pem'),
-};
-
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(bodyParser.json());
-
-
-const config = {
-    authRequired: false,
-    auth0Logout: true,
-    baseURL: 'https://localhost:443',
-    clientID: process.env.CLIENT_ID,
-    issuerBaseURL: process.env.ISSUER_BASE_URL,
-    secret: process.env.SECRET
 };
 
 const client = new Client({
@@ -42,14 +22,14 @@ const client = new Client({
     port: process.env.DATABASE_PORT,
     password: process.env.DATABASE_PASSWORD,
     database: process.env.DATABASE_NAME
-})
+});
 
-// app.use(auth(config));
-// // Middleware to make the `user` object available for all views
-// app.use(function (req, res, next) {
-//     res.locals.user = req.oidc.user;
-//     next();
-// });
+require('dotenv').config();
+dotenv.config()
+
+app.use(express.static(__dirname + '/public'));
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
 app.use(session({
     secret: process.env.SECRET,
@@ -65,17 +45,6 @@ const loginLimiter = rateLimit({
     message: { error: 'Too many login attempts. Try again later.' }
 });
 
-
-// Landing page
-// app.get('/', (req, res) => {
-//     if(req.oidc && req.oidc.isAuthenticated()){
-//         res.sendFile(__dirname + '/public/html/index.html', (err) => {
-//             if (err){
-//                 console.log(err);
-//             }
-//         })
-//         return;
-//     }
 app.get('/', (req, res) => {
     if (req.session.user && req.session.user.email && req.session.user.authenticated === true) { /// Checks if theres a session.user and if there is an email (which can only be set if logged in)
         return res.sendFile(__dirname + '/public/html/index.html');
@@ -98,12 +67,6 @@ app.get('/register', (req, res) => {
 
 /// Server side verification
 const mfaCodeStore = {}; // key: email, value: code
-
-
-// Grabs the email and password put in.
-// Checks if its all good and sends back a message
-// Theres a hardcoded email and password for testing purposes (maybe for the demo too?!?!?)
-// Sets the session.user email to carry it through the rest of the app
 
 app.get('/logout', async(req,res) => 
     {
@@ -149,7 +112,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             const user = result.rows[0];
             // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
             console.log("username: " + user.usrnme);
-            console.log("password: " + user.usrpass);
+            console.log("password: " + "*********");
 
             //this is a temp bypass for testing || While the encryption is not set up
             var isPasswordValid = false;
@@ -173,28 +136,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             }
         });
     
-    /// For the sake of testing || Hard coded version
-
-
-
-        // if(email === "username@test.com" && password === "password"){
-        //     const mfaCode = generateRandomSixDigitCode();
-        //     mfaCodeStore[email] = mfaCode;
-        //     console.log(mfaCodeStore);
-        //     console.log(mfaCode);
-
-        //     req.session.user = {
-        //         email: email,
-        //         authenticated: false
-        //     };
-            
-        //     return res.status(200).json({message: 'Login successful', email});;
-        // }
-        
-        //// use the stuff below for when we have database integration        
-        
-        
-        
     });
 app.post('/mfa', async (req, res) => {
 
@@ -262,11 +203,6 @@ app.post('/registerSubmit',  async (req, res) => {
     // sets the email
     let emailLC = email.toLowerCase();
 
-    // These are not being used rn
-    // const hashedPassword = hashPassword(password);
-    // const encryptedPassword = encrypt(hashedPassword.hash);
-    // const encryptedSalt = encrypt(hashedPassword.salt);
-    // Basic checks to see if all required data has been provided
     try{
         if(!email || !password){
             return res.status(400).json({error: 'Please enter both email and password'});
@@ -378,66 +314,6 @@ fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 // Store who is currently logged in
 let currentUser = null;
 
-// Login POST request
-// app.post('/',function(req, res){
-
-//     // Get username and password entered from user
-//     var username = req.body.username_input;
-//     var password = req.body.password_input;
-//     console.log(username, password);
-
-//     // Currently only "username" is a valid username
-//     if(username !== "username@test.com") {
-
-//         // Update login_attempt with credentials used to log in
-//         let login_attempt = {"username" : username, "password" : password};
-//         let data = JSON.stringify(login_attempt);
-//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
-
-//         // Redirect back to login page
-//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
-//             if (err){
-//                 console.log(err);
-//             }
-//         });
-//     }
-
-//     // Currently only "password" is a valid password
-//     if(password !== "password") {
-
-//         // Update login_attempt with credentials used to log in
-//         let login_attempt = {"username" : username, "password" : password};
-//         let data = JSON.stringify(login_attempt);
-//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
-
-//         // Redirect back to login page
-//         res.sendFile(__dirname + '/public/html/login.html', (err) => {
-//             if (err){
-//                 console.log(err);
-//             }
-//         });
-//     }
-
-//     // Valid username and password both entered together
-//     if(username === "username" && password === "password") {
-//         // Update login_attempt with credentials
-//         let login_attempt = {"username" : username, "password" : password};
-//         let data = JSON.stringify(login_attempt);
-//         fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
-
-//         // Update current user upon successful login
-//         currentUser = req.body.username_input;
-//         isAuthenticated = true;
-
-//         // Redirect to home page
-//         res.sendFile(__dirname + '/public/html/index.html', (err) => {
-//             if (err){
-//                 console.log(err);
-//             }
-//         })
-//     }
-// });
-
 // Make a post POST request
 app.post('/makepost', async(req, res) => {
 
@@ -455,42 +331,6 @@ app.post('/makepost', async(req, res) => {
         console.error(err);
     };
     res.redirect('/my_posts')
-
-
-    // // Read in current posts
-    // const json = fs.readFileSync(__dirname + '/public/json/posts.json');
-    // var posts = JSON.parse(json);
-
-    // // Get the current date
-
-    // // Find post with the highest ID
-    // let maxId = 0;
-    // for (let i = 0; i < posts.length; i++) {
-    //     if (posts[i].postId > maxId) {
-    //         maxId = posts[i].postId;
-    //     }
-    // }
-
-    // // Initialise ID for a new post
-    // let newId = 0;
-
-    // // If postId is empty, user is making a new post
-    // if(req.body.postId == "") {
-    //     newId = maxId + 1;
-    // } else { // If postID != empty, user is editing a post
-    //     newId = req.body.postId;
-
-    //     // Find post with the matching ID, delete it from posts so user can submit their new version
-    //     let index = posts.findIndex(item => item.postId == newId);
-    //     posts.splice(index, 1);
-    // }
-
-    // // Add post to posts.json
-    // posts.push({"username": res.locals.user.nickname, "timestamp": curDate, "postId": newId, "title": req.body.title_field, "content": req.body.content_field});
-    // fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
-
-    // // Redirect back to my_posts.html
-    // res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
  // Delete a post POST request
@@ -514,8 +354,8 @@ app.post('/makepost', async(req, res) => {
     res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
- https.createServer(options, app).listen(443, () => {
-    console.log(`Server running at https://localhost:443/`);
+ https.createServer(httpsOptions, app).listen(port, () => {
+    console.log(`Server running at https://localhost:${port}/`);
     client.connect().then(() => {
         console.log('db: Database Connected');
         
