@@ -343,7 +343,7 @@ app.post('/makepost', async(req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
 
-        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${ req.body.content_field}', '${res.session.user.username}', '${curDate}')`);
+        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${req.body.content_field}', '${req.session.user.username}', '${curDate}')`);
     }
     catch (err)
     {
