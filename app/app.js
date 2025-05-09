@@ -365,7 +365,7 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
             VALUES ($1, $2, $3, $4, $5)
         `;
         const values = [
-            101, // assuming this is a static ID or a trusted value
+            101, // always the same id
             req.body.title_field,
             req.body.content_field,
             req.session.user.username,
