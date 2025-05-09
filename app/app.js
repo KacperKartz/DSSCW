@@ -50,16 +50,18 @@ const loginLimiter = rateLimit({
     message: { error: 'Too many login attempts. Try again later.' }
 });
 
-app.get('/', (req, res) => {
-    if (req.session.user && req.session.user.email && req.session.user.authenticated === true) { /// Checks if theres a session.user and if there is an email (which can only be set if logged in)
-        return res.sendFile(__dirname + '/public/html/index.html');
+app.get('/', (req, res, next) => {
+    if (req.session.user && req.session.user.email && req.session.user.authenticated === true) {
+        sessionIntegrityCheck(req, res, (err) => {
+            if (err) return next(err); 
+            return res.sendFile(__dirname + '/public/html/index.html');
+        });
+    } else {
+        // Not logged in — show login page
+        res.sendFile(__dirname + '/public/html/login.html', (err) => {
+            if (err) console.log(err);
+        });
     }
-    
-    res.sendFile(__dirname + '/public/html/login.html', (err) => {
-        if (err){
-            console.log(err);
-        }
-    })
 });
 
 app.get('/register', (req, res) => {
@@ -89,7 +91,7 @@ app.get('/logout', async(req,res) =>
 
 app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
-    console.log(email, password);
+    console.log(email, "**********");
     // Forces entered email to lowercase
     let emailLC = email.toLowerCase();
 
@@ -133,7 +135,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             req.session.user = {
                 username: user.usrnme,
                 email: emailLC,
-                authenticated: false
+                authenticated: false,
             };
             // console.log("this is the req.session.user "+ req.session.user.email)
             return res.status(200).json({message: 'Login successful'});
@@ -185,7 +187,9 @@ app.post('/mfa', async (req, res) => {
         req.session.user = {
             email: email,
             username: username,
-            authenticated: true
+            authenticated: true,
+            userAgent: req.get('User-Agent'),
+            ip: req.ip
         };
 
         delete mfaCodeStore[email];
@@ -194,6 +198,21 @@ app.post('/mfa', async (req, res) => {
     });
 });
 
+function sessionIntegrityCheck(req, res, next) {
+    if (!req.session.user || !req.session.user.authenticated) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const currentIP = req.ip;
+    const currentUA = req.get('User-Agent');
+
+    if (req.session.user.ip !== currentIP || req.session.user.userAgent !== currentUA) {
+        return res.status(401).json({ error: 'Session integrity check failed' });
+    }
+
+    next();
+}
+  
     
 function generateRandomSixDigitCode() {
 
@@ -276,7 +295,7 @@ app.post('/registerSubmit',  async (req, res) => {
 
 
 // Landing page
-app.get('/posts', (req, res) => {
+app.get('/posts', sessionIntegrityCheck, (req, res) => {
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view posts.' });
     }
@@ -289,7 +308,7 @@ app.get('/posts', (req, res) => {
 });
 
 // Landing page
-app.get('/my_posts', (req, res) => {
+app.get('/my_posts', sessionIntegrityCheck, (req, res) => {
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
@@ -304,7 +323,7 @@ app.get('/my_posts', (req, res) => {
 
 
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
-app.get('/api/user', (req, res) => {
+app.get('/api/user', sessionIntegrityCheck, (req, res) => {
     if (req.session.user && req.session.user.authenticated === true) {
         return res.json({username:req.session.user.username});
     }
@@ -312,14 +331,14 @@ app.get('/api/user', (req, res) => {
 });
 
 
-app.post('/query/getPosts', async(req, res) => {
+app.post('/query/getPosts', sessionIntegrityCheck, async(req, res) => {
 
     const result = await client.query('SELECT * FROM blgtbl');
     res.send(result.rows);
 
 })
 
-app.post('/query/getMyPosts', async(req, res) => {
+app.post('/query/getMyPosts', sessionIntegrityCheck, async(req, res) => {
     // console.log(req.oidc.user.nickname);
     const user = req.session.user.username;
     const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = $1", [user]);
@@ -334,7 +353,7 @@ fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 let currentUser = null;
 
 // Make a post POST request
-app.post('/makepost', async(req, res) => {
+app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
 
     let curDate = new Date();
     curDate = curDate.toLocaleString("en-GB");
@@ -353,7 +372,7 @@ app.post('/makepost', async(req, res) => {
  });
 
  // Delete a post POST request
- app.post('/deletepost', (req, res) => {
+ app.post('/deletepost', sessionIntegrityCheck, (req, res) => {
 
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
