@@ -39,7 +39,7 @@ app.use(session({
         maxAge: 60 * 60 * 1000,
         httpOnly: true,       
         secure: true,           // Only over HTTPS
-        sameSite: 'strict'      // protect against xss
+        sameSite: 'strict'      // mitigate CSRF
     }
 }));
 
@@ -104,7 +104,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     
     const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
     client.query(query, [email], (err, result) => {
-
         if(err || !result.rows.length){
             // Dummy hash to simulate going through the verification || Dont think this does anything rn
             
@@ -112,45 +111,46 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             verifyPassword(password, dummyHash, dummyHash);
             return res.status(401).json({error: 'Incorrect credentials'});
         }
-            /// Below are the actual checks
-            
-            const user = result.rows[0];
-            // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-            console.log("username: " + user.usrnme);
-            console.log("password: " + "*********");
 
-            //this is a temp bypass for testing || While the encryption is not set up
-            var isPasswordValid = false;
-            if (password === user.usrpass) {isPasswordValid = true;}
+        /// Below are the actual checks
+        const user = result.rows[0];
+        // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
+        console.log("username: " + user.usrnme);
+        console.log("password: " + "*********");
 
-            if(!isPasswordValid){
-                return res.status(401).json({error: 'Incorrect credentials'});
-            }else{
-                const mfaCode = generateRandomSixDigitCode();
-                const expirationTime = Date.now() + 1 * 60 * 1000;
-                console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
-                mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
-                console.log(mfaCode);
-                req.session.user = {
-                    username: user.usrnme,
-                    email: emailLC,
-                    authenticated: false
-                };
-                // console.log("this is the req.session.user "+ req.session.user.email)
-                return res.status(200).json({message: 'Login successful'});
-            }
-        });
-    
-    });
+        //this is a temp bypass for testing || While the encryption is not set up
+        var isPasswordValid = false;
+        if (password === user.usrpass) {isPasswordValid = true;}
+
+        if(!isPasswordValid){
+            return res.status(401).json({error: 'Incorrect credentials'});
+        }else{
+            const mfaCode = generateRandomSixDigitCode();
+            const expirationTime = Date.now() + 1 * 60 * 1000;
+            console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
+            mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
+            console.log(mfaCode);
+            req.session.user = {
+                username: user.usrnme,
+                email: emailLC,
+                authenticated: false
+            };
+            // console.log("this is the req.session.user "+ req.session.user.email)
+            return res.status(200).json({message: 'Login successful'});
+        }
+    });    
+});
+
+
 app.post('/mfa', async (req, res) => {
 
     if (!req.session.user || !req.session.user.email) {
         return res.status(401).json({ error: 'Session expired or unauthorized' });
     }
 
-    
     const { mfaUserCode } = req.body;
     const email = req.session.user.email;
+    const username = req.session.user.username; // save username here so we can regenerate
     const mfaEntry = mfaCodeStore[email];
 
     if (!email || !mfaUserCode) {
@@ -160,6 +160,7 @@ app.post('/mfa', async (req, res) => {
     if (!mfaEntry) {
         return res.status(401).json({ error: 'MFA code expired or not found' });
     }
+
     console.log(mfaCodeStore);
     console.log(email, mfaUserCode);
 
@@ -170,16 +171,29 @@ app.post('/mfa', async (req, res) => {
         return res.status(401).json({ error: 'MFA code expired' });
     }
 
-    if(expectedCode && mfaUserCode === expectedCode){
-        delete mfaCodeStore[email];
-        req.session.user.authenticated = true;
-        return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
-        
-    }else{
-        return res.status(401).json({error: 'Incorrect MFA code'});
+    if (mfaUserCode !== expectedCode) {
+        return res.status(401).json({ error: 'Incorrect MFA code' });
     }
 
-})
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('Session regeneration error:', err);
+            return res.status(500).json({ error: 'Session error' });
+        }
+
+        // Rebuild session with preserved values from req.session
+        req.session.user = {
+            email: email,
+            username: username,
+            authenticated: true
+        };
+
+        delete mfaCodeStore[email];
+
+        return res.status(200).json({ message: 'MFA successful', username: username });
+    });
+});
+
     
 function generateRandomSixDigitCode() {
 
