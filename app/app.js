@@ -212,10 +212,8 @@ function sessionIntegrityCheck(req, res, next) {
 
     next();
 }
-  
-    
-function generateRandomSixDigitCode() {
 
+function generateRandomSixDigitCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
@@ -256,8 +254,8 @@ app.post('/registerSubmit',  async (req, res) => {
         }
 
         // Makes sure that this user does not already exist
-        const checkQuery = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
-        const existCheck = await client.query(checkQuery);
+        const checkQuery = `SELECT * FROM usrtbl WHERE usremail = $1`;
+        const existCheck = await client.query(checkQuery, [emailLC]);
 
         let taken = false;
 		for (i = 0; i < existCheck.rows.length; i++) {
@@ -267,8 +265,8 @@ app.post('/registerSubmit',  async (req, res) => {
         if (!taken)
         {
             // Adds the new user to the database
-            const createUsr = (`INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ('${username}','${password}','${emailLC}')`)
-            client.query(createUsr);
+            const query = `INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ($1, $2, $3)`
+            await client.query(query, [username, password, emailLC]);
             return res.status(200).json({message: 'User Registered'})
         }
         else
@@ -362,7 +360,20 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
 
-        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${req.body.content_field}', '${req.session.user.username}', '${curDate}')`);
+        const query = `
+            INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate)
+            VALUES ($1, $2, $3, $4, $5)
+        `;
+        const values = [
+            101, // assuming this is a static ID or a trusted value
+            req.body.title_field,
+            req.body.content_field,
+            req.session.user.username,
+            curDate
+        ];
+
+        await client.query(query, values);
+
     }
     catch (err)
     {
