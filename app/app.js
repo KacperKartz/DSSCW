@@ -34,8 +34,13 @@ app.use(bodyParser.json());
 app.use(session({
     secret: process.env.SECRET,
     resave: false,
-    saveUninitialized: true,
-    cookie: {maxAge: 60 * 60 * 1000}
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 60 * 60 * 1000,
+        httpOnly: true,       
+        secure: true,           // Only over HTTPS
+        sameSite: 'strict'      // mitigate CSRF
+    }
 }));
 
 
@@ -45,16 +50,18 @@ const loginLimiter = rateLimit({
     message: { error: 'Too many login attempts. Try again later.' }
 });
 
-app.get('/', (req, res) => {
-    if (req.session.user && req.session.user.email && req.session.user.authenticated === true) { /// Checks if theres a session.user and if there is an email (which can only be set if logged in)
-        return res.sendFile(__dirname + '/public/html/index.html');
+app.get('/', (req, res, next) => {
+    if (req.session.user && req.session.user.email && req.session.user.authenticated === true) {
+        sessionIntegrityCheck(req, res, (err) => {
+            if (err) return next(err); 
+            return res.sendFile(__dirname + '/public/html/index.html');
+        });
+    } else {
+        // Not logged in — show login page
+        res.sendFile(__dirname + '/public/html/login.html', (err) => {
+            if (err) console.log(err);
+        });
     }
-    
-    res.sendFile(__dirname + '/public/html/login.html', (err) => {
-        if (err){
-            console.log(err);
-        }
-    })
 });
 
 app.get('/register', (req, res) => {
@@ -84,7 +91,7 @@ app.get('/logout', async(req,res) =>
 
 app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
-    console.log(email, password);
+    console.log(email, "**********");
     // Forces entered email to lowercase
     let emailLC = email.toLowerCase();
 
@@ -99,7 +106,6 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     
     const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
     client.query(query, [email], (err, result) => {
-
         if(err || !result.rows.length){
             // Dummy hash to simulate going through the verification || Dont think this does anything rn
             
@@ -107,45 +113,46 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             verifyPassword(password, dummyHash, dummyHash);
             return res.status(401).json({error: 'Incorrect credentials'});
         }
-            /// Below are the actual checks
-            
-            const user = result.rows[0];
-            // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
-            console.log("username: " + user.usrnme);
-            console.log("password: " + "*********");
 
-            //this is a temp bypass for testing || While the encryption is not set up
-            var isPasswordValid = false;
-            if (password === user.usrpass) {isPasswordValid = true;}
+        /// Below are the actual checks
+        const user = result.rows[0];
+        // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
+        console.log("username: " + user.usrnme);
+        console.log("password: " + "*********");
 
-            if(!isPasswordValid){
-                return res.status(401).json({error: 'Incorrect credentials'});
-            }else{
-                const mfaCode = generateRandomSixDigitCode();
-                const expirationTime = Date.now() + 1 * 60 * 1000;
-                console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
-                mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
-                console.log(mfaCode);
-                req.session.user = {
-                    username: user.usrnme,
-                    email: emailLC,
-                    authenticated: false
-                };
-                // console.log("this is the req.session.user "+ req.session.user.email)
-                return res.status(200).json({message: 'Login successful'});
-            }
-        });
-    
-    });
+        //this is a temp bypass for testing || While the encryption is not set up
+        var isPasswordValid = false;
+        if (password === user.usrpass) {isPasswordValid = true;}
+
+        if(!isPasswordValid){
+            return res.status(401).json({error: 'Incorrect credentials'});
+        }else{
+            const mfaCode = generateRandomSixDigitCode();
+            const expirationTime = Date.now() + 1 * 60 * 1000;
+            console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
+            mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
+            console.log(mfaCode);
+            req.session.user = {
+                username: user.usrnme,
+                email: emailLC,
+                authenticated: false,
+            };
+            // console.log("this is the req.session.user "+ req.session.user.email)
+            return res.status(200).json({message: 'Login successful'});
+        }
+    });    
+});
+
+
 app.post('/mfa', async (req, res) => {
 
     if (!req.session.user || !req.session.user.email) {
         return res.status(401).json({ error: 'Session expired or unauthorized' });
     }
 
-    
     const { mfaUserCode } = req.body;
     const email = req.session.user.email;
+    const username = req.session.user.username; // save username here so we can regenerate
     const mfaEntry = mfaCodeStore[email];
 
     if (!email || !mfaUserCode) {
@@ -155,6 +162,7 @@ app.post('/mfa', async (req, res) => {
     if (!mfaEntry) {
         return res.status(401).json({ error: 'MFA code expired or not found' });
     }
+
     console.log(mfaCodeStore);
     console.log(email, mfaUserCode);
 
@@ -165,19 +173,47 @@ app.post('/mfa', async (req, res) => {
         return res.status(401).json({ error: 'MFA code expired' });
     }
 
-    if(expectedCode && mfaUserCode === expectedCode){
-        delete mfaCodeStore[email];
-        req.session.user.authenticated = true;
-        return res.status(200).json({ message: 'MFA successful', username: req.session.user.username }); 
-        
-    }else{
-        return res.status(401).json({error: 'Incorrect MFA code'});
+    if (mfaUserCode !== expectedCode) {
+        return res.status(401).json({ error: 'Incorrect MFA code' });
     }
 
-})
-    
-function generateRandomSixDigitCode() {
+    req.session.regenerate((err) => {
+        if (err) {
+            console.error('Session regeneration error:', err);
+            return res.status(500).json({ error: 'Session error' });
+        }
 
+        // Rebuild session with preserved values from req.session
+        req.session.user = {
+            email: email,
+            username: username,
+            authenticated: true,
+            userAgent: req.get('User-Agent'),
+            ip: req.ip
+        };
+
+        delete mfaCodeStore[email];
+
+        return res.status(200).json({ message: 'MFA successful', username: username });
+    });
+});
+
+function sessionIntegrityCheck(req, res, next) {
+    if (!req.session.user || !req.session.user.authenticated) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const currentIP = req.ip;
+    const currentUA = req.get('User-Agent');
+
+    if (req.session.user.ip !== currentIP || req.session.user.userAgent !== currentUA) {
+        return res.status(401).json({ error: 'Session integrity check failed' });
+    }
+
+    next();
+}
+
+function generateRandomSixDigitCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
@@ -218,8 +254,8 @@ app.post('/registerSubmit',  async (req, res) => {
         }
 
         // Makes sure that this user does not already exist
-        const checkQuery = `SELECT * FROM usrtbl WHERE usremail = '${emailLC}'`;
-        const existCheck = await client.query(checkQuery);
+        const checkQuery = `SELECT * FROM usrtbl WHERE usremail = $1`;
+        const existCheck = await client.query(checkQuery, [emailLC]);
 
         let taken = false;
 		for (i = 0; i < existCheck.rows.length; i++) {
@@ -229,8 +265,8 @@ app.post('/registerSubmit',  async (req, res) => {
         if (!taken)
         {
             // Adds the new user to the database
-            const createUsr = (`INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ('${username}','${password}','${emailLC}')`)
-            client.query(createUsr);
+            const query = `INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ($1, $2, $3)`
+            await client.query(query, [username, password, emailLC]);
             return res.status(200).json({message: 'User Registered'})
         }
         else
@@ -257,7 +293,7 @@ app.post('/registerSubmit',  async (req, res) => {
 
 
 // Landing page
-app.get('/posts', (req, res) => {
+app.get('/posts', sessionIntegrityCheck, (req, res) => {
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view posts.' });
     }
@@ -270,7 +306,7 @@ app.get('/posts', (req, res) => {
 });
 
 // Landing page
-app.get('/my_posts', (req, res) => {
+app.get('/my_posts', sessionIntegrityCheck, (req, res) => {
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
@@ -285,7 +321,7 @@ app.get('/my_posts', (req, res) => {
 
 
 // Temporary api for user info, could be permanent. Saves us storing anything on the user side.
-app.get('/api/user', (req, res) => {
+app.get('/api/user', sessionIntegrityCheck, (req, res) => {
     if (req.session.user && req.session.user.authenticated === true) {
         return res.json({username:req.session.user.username});
     }
@@ -293,14 +329,14 @@ app.get('/api/user', (req, res) => {
 });
 
 
-app.post('/query/getPosts', async(req, res) => {
+app.post('/query/getPosts', sessionIntegrityCheck, async(req, res) => {
 
     const result = await client.query('SELECT * FROM blgtbl');
     res.send(result.rows);
 
 })
 
-app.post('/query/getMyPosts', async(req, res) => {
+app.post('/query/getMyPosts', sessionIntegrityCheck, async(req, res) => {
     // console.log(req.oidc.user.nickname);
     const user = req.session.user.username;
     const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = $1", [user]);
@@ -315,7 +351,7 @@ fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
 let currentUser = null;
 
 // Make a post POST request
-app.post('/makepost', async(req, res) => {
+app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
 
     let curDate = new Date();
     curDate = curDate.toLocaleString("en-GB");
@@ -324,7 +360,20 @@ app.post('/makepost', async(req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Please log in to make a post.' });
         }
 
-        await client.query(`INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate) VALUES ('101', '${req.body.title_field}', '${ req.body.content_field}', '${res.session.user.username}', '${curDate}')`);
+        const query = `
+            INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate)
+            VALUES ($1, $2, $3, $4, $5)
+        `;
+        const values = [
+            101, // always the same id
+            req.body.title_field,
+            req.body.content_field,
+            req.session.user.username,
+            curDate
+        ];
+
+        await client.query(query, values);
+
     }
     catch (err)
     {
@@ -334,7 +383,7 @@ app.post('/makepost', async(req, res) => {
  });
 
  // Delete a post POST request
- app.post('/deletepost', (req, res) => {
+ app.post('/deletepost', sessionIntegrityCheck, (req, res) => {
 
     if (!req.session.user || req.session.user.isAuthenticated == false) {
         return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
