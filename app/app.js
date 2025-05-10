@@ -2,7 +2,6 @@ const express = require('express');
 const session = require('express-session');
 const dotenv = require('dotenv');
 const app = express();
-const { Client } = require('pg');
 const fs = require('fs');
 const https = require('https');
 const rateLimit = require('express-rate-limit');
@@ -15,14 +14,6 @@ const httpsOptions = {
     key: fs.readFileSync('./https/privkey.pem'),
     cert: fs.readFileSync('./https/fullchain.pem'),
 };
-
-const client = new Client({
-    host: process.env.DATABASE_IP,
-    user: process.env.DATABASE_USER,
-    port: process.env.DATABASE_PORT,
-    password: process.env.DATABASE_PASSWORD,
-    database: process.env.DATABASE_NAME
-});
 
 require('dotenv').config();
 dotenv.config()
@@ -43,6 +34,7 @@ app.use(session({
     }
 }));
 
+const client = require('./db');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -403,31 +395,26 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
     res.sendFile(__dirname + "/public/html/my_posts.html");
  });
 
- https.createServer(httpsOptions, app).listen(port, () => {
+https.createServer(httpsOptions, app).listen(port, () => {
     console.log(`Server running at https://localhost:${port}/`);
-    client.connect().then(() => {
-        console.log('db: Database Connected');
-        
-        // Create tables here if they don't exist (bigtbl didnt exist for me)
-        const createTableQuery = `
-            CREATE TABLE IF NOT EXISTS blgtbl (
-                id SERIAL PRIMARY KEY,
-                usrid INT,
-                blgtitle VARCHAR(255),
-                blgcont TEXT,
-                blgauth VARCHAR(255),
-                blgdate TIMESTAMP
-            );
-        `;
-        
-        client.query(createTableQuery, (err, res) => {
-            if (err) {
-                console.error('db: bigtbl not available, error creating table', err);
-            } else {
-                console.log('db: bigtbl available');
-            }
-        });
-    }).catch((err) => {
-        console.error('db: Error connecting to the database, is it online? Error:', err);
+
+    // Create tables after connection is established
+    const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS blgtbl (
+            id SERIAL PRIMARY KEY,
+            usrid INT,
+            blgtitle VARCHAR(255),
+            blgcont TEXT,
+            blgauth VARCHAR(255),
+            blgdate TIMESTAMP
+        );
+    `;
+
+    client.query(createTableQuery, (err, res) => {
+        if (err) {
+            console.error('db: bigtbl not available, error creating table', err);
+        } else {
+            console.log('db: bigtbl available');
+        }
     });
 });
