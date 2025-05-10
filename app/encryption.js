@@ -1,6 +1,9 @@
 const crypto = require('crypto');
-require('dotenv').config();
-
+if (process.env.NODE_ENV === 'test') {
+    require('dotenv').config({ path: '.env.test' });
+} else {
+    require('dotenv').config();
+}
 
 
 // Generate key - 32 random bytes and iv - 16 random bytes
