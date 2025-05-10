@@ -105,7 +105,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     }
     
     const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
-    client.query(query, [email], (err, result) => {
+    client.query(query, [emailLC], (err, result) => {
         if(err || !result.rows.length){
             // Dummy hash to simulate going through the verification || Dont think this does anything rn
             
@@ -120,6 +120,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
         console.log("username: " + user.usrnme);
         console.log("password: " + "*********");
 
+
         //this is a temp bypass for testing || While the encryption is not set up
         var isPasswordValid = false;
         if (password === user.usrpass) {isPasswordValid = true;}
@@ -130,11 +131,12 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             const mfaCode = generateRandomSixDigitCode();
             const expirationTime = Date.now() + 1 * 60 * 1000;
             console.log(`expires at: ${new Date(expirationTime).toLocaleString()}`);
-            mfaCodeStore[email] =  { code: mfaCode, expiresAt: expirationTime };
+            mfaCodeStore[emailLC] =  { code: mfaCode, expiresAt: expirationTime };
             console.log(mfaCode);
             req.session.user = {
                 username: user.usrnme,
                 email: emailLC,
+                userid: user.usrid,
                 authenticated: false,
             };
             // console.log("this is the req.session.user "+ req.session.user.email)
@@ -152,8 +154,11 @@ app.post('/mfa', async (req, res) => {
 
     const { mfaUserCode } = req.body;
     const email = req.session.user.email;
-    const username = req.session.user.username; // save username here so we can regenerate
+    const username = req.session.user.username;
+    const userID = req.session.user.userid; // save username here so we can regenerate
     const mfaEntry = mfaCodeStore[email];
+
+    console.log(userID)
 
     if (!email || !mfaUserCode) {
         return res.status(400).json({ error: 'Missing email or MFA code' });
@@ -187,6 +192,7 @@ app.post('/mfa', async (req, res) => {
         req.session.user = {
             email: email,
             username: username,
+            userid: userID,
             authenticated: true,
             userAgent: req.get('User-Agent'),
             ip: req.ip
@@ -338,8 +344,7 @@ app.post('/query/getPosts', sessionIntegrityCheck, async(req, res) => {
 
 app.post('/query/getMyPosts', sessionIntegrityCheck, async(req, res) => {
     // console.log(req.oidc.user.nickname);
-    const user = req.session.user.username;
-    const result = await client.query("SELECT * FROM blgtbl WHERE blgauth = $1", [user]);
+    const result = await client.query("SELECT * FROM blgtbl WHERE usrid = $1", [req.session.user.userid]);
     res.send(result.rows);
 })
 // // Reset login_attempt.json when server restarts
@@ -352,7 +357,6 @@ let currentUser = null;
 
 // Make a post POST request
 app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
-
     let curDate = new Date();
     curDate = curDate.toLocaleString("en-GB");
     try {
@@ -365,7 +369,7 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
             VALUES ($1, $2, $3, $4, $5)
         `;
         const values = [
-            101, // always the same id
+            req.session.user.userid,
             req.body.title_field,
             req.body.content_field,
             req.session.user.username,
@@ -383,24 +387,34 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
  });
 
  // Delete a post POST request
- app.post('/deletepost', sessionIntegrityCheck, (req, res) => {
+ app.post('/deletepost', sessionIntegrityCheck,  async (req, res) => {
 
-    if (!req.session.user || req.session.user.isAuthenticated == false) {
-        return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
+    try 
+    {
+        if (!req.session.user || req.session.user.isAuthenticated == false) {
+            return res.status(401).json({ error: 'Unauthorized: Please log in to delete a post.' });
+        }
+    
+        // Read in current posts
+        const json = fs.readFileSync(__dirname + '/public/json/posts.json');
+        var posts = JSON.parse(json);
+    
+        // Find post with matching ID and delete it
+        let index = posts.findIndex(item => item.postId == req.body.postId);
+    
+        const deleteQuery = 'DELETE FROM blgtbl WHERE blgid = $1'
+        await client.query(deleteQuery, [req.body.postId]);
+        posts.splice(index, 1);
+    
+        // Update posts.json
+        fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
+        return res.status(200).json({message: 'Post Deleted'})
+        
     }
-
-    // Read in current posts
-    const json = fs.readFileSync(__dirname + '/public/json/posts.json');
-    var posts = JSON.parse(json);
-
-    // Find post with matching ID and delete it
-    let index = posts.findIndex(item => item.postId == req.body.postId);
-    posts.splice(index, 1);
-
-    // Update posts.json
-    fs.writeFileSync(__dirname + '/public/json/posts.json', JSON.stringify(posts));
-
-    res.sendFile(__dirname + "/public/html/my_posts.html");
+    catch (err)
+    {
+        console.log(err)
+    }
  });
 
  https.createServer(httpsOptions, app).listen(port, () => {

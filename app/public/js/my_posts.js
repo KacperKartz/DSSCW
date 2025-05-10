@@ -86,7 +86,7 @@ function renderPosts(author, timestamp, title, content, postId) {
     postList.insertBefore(postContainer, document.querySelectorAll("article")[0]);
 }
 // Function to remove a post from the page after clicking delete - this is also reflected on the server side
-function deletePost(e) {
+async function deletePost(e) {
 
     // Put post in object to be the body of fetch request
     const post = {
@@ -98,18 +98,20 @@ function deletePost(e) {
     };
 
     // Delete post
-  fetch('/deletepost', {
-    method: 'POST',
-    headers: requestHeaders,
-    body:JSON.stringify(post)
-  });
+    const response = await fetch('/deletepost', {
+        method: 'POST',
+        headers: requestHeaders,
+        body:JSON.stringify(post)
+    });
 
-  // Hide element on button click so deletion appears immediate
-  e.target.parentNode.hidden = true;
+    if(response.ok)
+    {
+        window.location.href = '/my_posts';
+    }
 }
 
-// Function to edit post
-function editPost(e) {
+// Function to edit post || pulls all the data into the form and then deletes that post
+async function editPost(e) {
 
     // Get post that the user clicked on
     let post = e.target.parentNode;
@@ -121,6 +123,21 @@ function editPost(e) {
 
     // Scroll user to post form
     document.getElementById("postForm").scrollIntoView({behavior: "smooth"});
+
+
+    const blog = {
+        postId:document.getElementsByTagName('h6')[0].textContent, 
+    };
+
+    const requestHeaders = {
+        "Content-Type": "application/json"
+    };
+
+    await fetch('/deletepost', {
+        method: 'POST',
+        headers: requestHeaders,
+        body:JSON.stringify(blog)
+    });
 
 }
 
