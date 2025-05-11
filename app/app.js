@@ -383,7 +383,7 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
 
         console.log(escapedTitle, escapedContent); //DEBUGGING
         const values = [
-            101, // always the same id
+            req.session.user.userid,
             escapedTitle,
             escapedContent,
             req.session.user.username,
