@@ -35,6 +35,7 @@ app.use(session({
 }));
 
 const client = require('./db');
+const e = require('express');
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -84,9 +85,11 @@ app.get('/logout', async(req,res) =>
 app.post('/validateLogin',loginLimiter, async (req, res) => {
     const {email, password} = req.body;
     console.log(email, "**********");
+
     // Forces entered email to lowercase
     let emailLC = email.toLowerCase();
 
+    const encryptedEmail = encrypt(emailLC);
     // Makes sure all fields are filled
     if(!email || !password){
         return res.status(400).json({error: 'Please enter both email and password'});
@@ -95,9 +98,10 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     if(!email.includes('@') || !email.includes('.')){
         return res.status(400).json({error: 'Incorrect credentials'});
     }
+
     
     const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
-    client.query(query, [emailLC], (err, result) => {
+    client.query(query, [encryptedEmail], (err, result) => {
         if(err || !result.rows.length){
             // Dummy hash to simulate going through the verification || Dont think this does anything rn
             
@@ -106,8 +110,12 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             return res.status(401).json({error: 'Incorrect credentials'});
         }
 
+
+        
+
         /// Below are the actual checks
         const user = result.rows[0];
+        console.log(user);
         // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
         console.log("username: " + user.usrnme);
         console.log("password: " + "*********");
@@ -115,7 +123,10 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
 
         //this is a temp bypass for testing || While the encryption is not set up
         var isPasswordValid = false;
-        if (password === user.usrpass) {isPasswordValid = true;}
+
+        const decryptedEmail = decrypt(user.usremail);
+
+        isPasswordValid = verifyPassword(password, user.pwrdsalt, user.usrpass);
 
         if(!isPasswordValid){
             return res.status(401).json({error: 'Incorrect credentials'});
@@ -127,7 +138,7 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
             console.log(mfaCode);
             req.session.user = {
                 username: user.usrnme,
-                email: emailLC,
+                email: decryptedEmail,
                 userid: user.usrid,
                 authenticated: false,
             };
@@ -237,6 +248,10 @@ app.post('/registerSubmit',  async (req, res) => {
     // sets the email
     let emailLC = email.toLowerCase();
 
+    const encryptedEmail = encrypt(emailLC);
+
+
+
     try{
         if(!email || !password){
             return res.status(400).json({error: 'Please enter both email and password'});
@@ -253,18 +268,25 @@ app.post('/registerSubmit',  async (req, res) => {
 
         // Makes sure that this user does not already exist
         const checkQuery = `SELECT * FROM usrtbl WHERE usremail = $1`;
-        const existCheck = await client.query(checkQuery, [emailLC]);
+
+        const existCheck = await client.query(checkQuery, [encryptedEmail]);
 
         let taken = false;
+
+
 		for (i = 0; i < existCheck.rows.length; i++) {
-			if (existCheck.rows[i].usremail === emailLC) { taken = true; console.log("User Exists"); break; }
+			if (existCheck.rows[i].usremail === encryptedEmail) { taken = true; console.log("User Exists"); break; }
 		}
 
         if (!taken)
         {
+
+            const {salt, hash} = hashPassword(password);
+
+
             // Adds the new user to the database
-            const query = `INSERT INTO usrtbl (usrnme, usrpass, usremail) VALUES ($1, $2, $3)`
-            await client.query(query, [username, password, emailLC]);
+            const query = `INSERT INTO usrtbl (usrnme, usrpass, usremail, pwrdsalt ) VALUES ($1, $2, $3, $4)`;
+            await client.query(query, [username, hash, encryptedEmail, salt]);
             return res.status(200).json({message: 'User Registered'})
         }
         else
