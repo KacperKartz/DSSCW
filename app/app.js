@@ -360,10 +360,32 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
             INSERT INTO blgtbl (usrid, blgtitle, blgcont, blgauth, blgdate)
             VALUES ($1, $2, $3, $4, $5)
         `;
+        // This is violently inefficient, but it should(TM) prevent SQL injection in the two free-form text fields on the make posts page. 
+        // A more efficient way to do this would be to make a dictionary of all the characters we want to escape and then loop through it,
+        // but this is easier to read and amend for now.
+        var escapedTitle = req.body.title_field
+        .replace(/'/g, "''")
+        .replace(/"/g, '\\"')
+        .replace(/\\/g, "\\\\")
+        .replace(/</g, "&lt;") // Escape less than
+        .replace(/>/g, "&gt;") // Escape greater than
+        .replace(/&/g, "&amp;") // Escape ampersand
+        .replace(/`/g, "&#96;") // Escape backtick
+
+        var escapedContent = req.body.content_field
+        .replace(/'/g, "''")
+        .replace(/"/g, '\\"')
+        .replace(/\\/g, "\\\\")
+        .replace(/</g, "&lt;") // Escape less than
+        .replace(/>/g, "&gt;") // Escape greater than
+        .replace(/&/g, "&amp;") // Escape ampersand
+        .replace(/`/g, "&#96;") // Escape backtick
+
+        console.log(escapedTitle, escapedContent); //DEBUGGING
         const values = [
-            req.session.user.userid,
-            req.body.title_field,
-            req.body.content_field,
+            101, // always the same id
+            escapedTitle,
+            escapedContent,
             req.session.user.username,
             curDate
         ];
