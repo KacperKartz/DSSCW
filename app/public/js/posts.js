@@ -21,7 +21,29 @@ async function loadPosts() {
         // console.log(data)
 
         for (let i = 0; i < data.length; i++) {
-            renderPosts(data[i].blgauth, data[i].blgdate, data[i].blgtitle, data[i].blgcont, data[i].blgid)
+        // This is violently inefficient, but it should(TM) prevent SQL injection in the two free-form text fields on the make posts page. 
+        // A more efficient way to do this would be to make a dictionary of all the characters we want to escape and then loop through it,
+        // but this is easier to read and amend for now.
+            var escapedTitle = data[i].blgtitle
+            .replace(/'/g, "''")
+            .replace(/"/g, '\\"')
+            .replace(/\\/g, "\\\\")
+            .replace(/</g, "&lt;") // Escape less than
+            .replace(/>/g, "&gt;") // Escape greater than
+            .replace(/&/g, "&amp;") // Escape ampersand
+            .replace(/`/g, "&#96;") // Escape backtick
+
+        var escapedContent = data[i].blgcont
+            .replace(/'/g, "''")
+            .replace(/"/g, '\\"')
+            .replace(/\\/g, "\\\\")
+            .replace(/</g, "&lt;") // Escape less than
+            .replace(/>/g, "&gt;") // Escape greater than
+            .replace(/&/g, "&amp;") // Escape ampersand
+            .replace(/`/g, "&#96;") // Escape backtick
+
+            console.log(escapedTitle, escapedContent); //DEBUGGING
+            renderPosts(data[i].blgauth, data[i].blgdate, escapedTitle, escapedContent, data[i].blgid)
         }
     })
     // Remove current posts
