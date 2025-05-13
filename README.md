@@ -9,6 +9,8 @@ Clone the repo
 Run server
 
 ```bash
-    cd .\Server
-    nodemon server.js
+    cd app
+    node app.js
+
+You will need the .env file for this to work
 ```
