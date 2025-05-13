@@ -9,7 +9,7 @@ const bodyParser = require('body-parser');
 const { encrypt, decrypt, hashPassword, verifyPassword } = require('./encryption');
 
 const port = 443;
-
+// Loads the private key and the certificate
 const httpsOptions = {
     key: fs.readFileSync('./https/privkey.pem'),
     cert: fs.readFileSync('./https/fullchain.pem'),
@@ -22,6 +22,7 @@ app.use(express.static(__dirname + '/public'));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+// Intialises the cookie || CSRF + Session hijacking mit
 app.use(session({
     secret: process.env.SECRET,
     resave: false,
@@ -44,6 +45,7 @@ const loginLimiter = rateLimit({
 });
 
 app.get('/', (req, res, next) => {
+    //checks if user auth
     if (req.session.user && req.session.user.email && req.session.user.authenticated === true) {
         sessionIntegrityCheck(req, res, (err) => {
             if (err) return next(err); 
@@ -103,7 +105,9 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
     const query = `SELECT * FROM usrtbl WHERE usremail = $1`;
     client.query(query, [encryptedEmail], (err, result) => {
         if(err || !result.rows.length){
-            // Dummy hash to simulate going through the verification || Dont think this does anything rn
+
+
+            // Dummy hash to simulate going through the verification || Extends processing time. Mit Account Enummeration
             
             const dummyHash ='$2b$10$CwTycUXWue0Thq9StjUM0uJ8p6u7rQ8qUZFvkyFJe/39jwS/BI6iC';
             verifyPassword(password, dummyHash, dummyHash);
@@ -111,17 +115,15 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
         }
 
 
-        
-
-        /// Below are the actual checks
+    
         const user = result.rows[0];
+        // Testing
         console.log(user);
-        // const isPasswordValid = verifyPassword(password, user.salt, user.hash);
         console.log("username: " + user.usrnme);
         console.log("password: " + "*********");
 
+        /// Below are the actual checks
 
-        //this is a temp bypass for testing || While the encryption is not set up
         var isPasswordValid = false;
 
         const decryptedEmail = decrypt(user.usremail);
@@ -142,12 +144,15 @@ app.post('/validateLogin',loginLimiter, async (req, res) => {
                 userid: user.usrid,
                 authenticated: false,
             };
-            // console.log("this is the req.session.user "+ req.session.user.email)
             return res.status(200).json({message: 'Login successful'});
         }
     });    
 });
 
+// MFA validation
+// Just grabs the users email and mfa code
+// Checks if the code matches the expected code which they got through email (aka console)
+// If it does, sets authenticated to true and in frontend they get redirected
 
 app.post('/mfa', async (req, res) => {
 
@@ -171,11 +176,13 @@ app.post('/mfa', async (req, res) => {
         return res.status(401).json({ error: 'MFA code expired or not found' });
     }
 
+    // Testing
     console.log(mfaCodeStore);
     console.log(email, mfaUserCode);
 
     const { code: expectedCode, expiresAt } = mfaEntry;
 
+    // Expiry Code
     if (Date.now() > expiresAt) {
         delete mfaCodeStore[email];
         return res.status(401).json({ error: 'MFA code expired' });
@@ -185,6 +192,7 @@ app.post('/mfa', async (req, res) => {
         return res.status(401).json({ error: 'Incorrect MFA code' });
     }
 
+    // Session hijacking Mit
     req.session.regenerate((err) => {
         if (err) {
             console.error('Session regeneration error:', err);
@@ -207,6 +215,7 @@ app.post('/mfa', async (req, res) => {
     });
 });
 
+// Session hijacking Mit || Checks the current IP against the initial IP
 function sessionIntegrityCheck(req, res, next) {
     if (!req.session.user || !req.session.user.authenticated) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -243,8 +252,8 @@ app.get('/mfaPage', (req, res) => {
 
 app.post('/registerSubmit',  async (req, res) => {
 
+    // Gets the variables from the register page
     const {username, email, password} = req.body;
-    // console.log(username, email, password); // This is for testing
     // sets the email
     let emailLC = email.toLowerCase();
 
@@ -291,7 +300,7 @@ app.post('/registerSubmit',  async (req, res) => {
         }
         else
         {
-            return res.status(400).json({error: 'User already exists'}) // This is a bad message
+            return res.status(400).json({error: "Registration Error, Please Try Again"}) // This is a bad message
         }
 
     } catch (err) {
@@ -302,15 +311,6 @@ app.post('/registerSubmit',  async (req, res) => {
 
 
 })
-
-// MFA validation
-// Just grabs the users email and mfa code
-// Checks if the code matches the expected code which they got through email (aka console)
-// If it does, sets authenticated to true and in frontend they get redirected (yay)
-
-
-
-
 
 // Landing page
 app.get('/posts', sessionIntegrityCheck, (req, res) => {
@@ -331,7 +331,6 @@ app.get('/my_posts', sessionIntegrityCheck, (req, res) => {
         return res.status(401).json({ error: 'Unauthorized: Please log in to view your posts.' });
     }
 
-
     res.sendFile(__dirname + '/public/html/my_posts.html', (err) => {
         if (err){
             console.log(err);
@@ -340,7 +339,7 @@ app.get('/my_posts', sessionIntegrityCheck, (req, res) => {
 });
 
 
-// Temporary api for user info, could be permanent. Saves us storing anything on the user side.
+// Api for user info. Saves us storing anything on the user side.
 app.get('/api/user', sessionIntegrityCheck, (req, res) => {
     if (req.session.user && req.session.user.authenticated === true) {
         return res.json({username:req.session.user.username});
@@ -357,17 +356,9 @@ app.post('/query/getPosts', sessionIntegrityCheck, async(req, res) => {
 })
 
 app.post('/query/getMyPosts', sessionIntegrityCheck, async(req, res) => {
-    // console.log(req.oidc.user.nickname);
     const result = await client.query("SELECT * FROM blgtbl WHERE usrid = $1", [req.session.user.userid]);
     res.send(result.rows);
 })
-// // Reset login_attempt.json when server restarts
-let login_attempt = {"username" : "null", "password" : "null"};
-let data = JSON.stringify(login_attempt);
-fs.writeFileSync(__dirname + '/public/json/login_attempt.json', data);
-
-// Store who is currently logged in
-let currentUser = null;
 
 // Make a post POST request
 app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
@@ -432,10 +423,12 @@ app.post('/makepost', sessionIntegrityCheck, async(req, res) => {
     }
  });
 
+
+// This is where the HTTPS server is created
 https.createServer(httpsOptions, app).listen(port, () => {
     console.log(`Server running at https://localhost:${port}/`);
 
-    // Create tables after connection is established
+    // Create tables after connection is established if the table does not exist
     const createTableQuery = `
         CREATE TABLE IF NOT EXISTS blgtbl (
             id SERIAL PRIMARY KEY,

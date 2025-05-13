@@ -11,22 +11,16 @@ if (process.env.NODE_ENV === 'test') {
 // const key = (crypto.randomBytes(32));
 // const iv =(crypto.randomBytes(16));
 
-
 const algorithm = process.env.ALGORITHM; // assign algorithm from .env
 const key = Buffer.from(process.env.ENCRYPTION_KEY, 'hex'); // asign key from .env
 const iv = Buffer.from(process.env.IV, 'hex'); // assign iv from .env
 const PEPPER = process.env.PEPPER; // assign pepper from .env
 
 
-
-
-
-
-
 // --- Encryption & Decryption ---
 
 // AES-256-CBC stands for "Advanced Encryption Standard with a 256-bit key in Cipher Block Chaining (CBC) mode."
-//  It is a type of symmetric key encryption algorithm that uses a 256-bit key to encode and decode data.
+// It is a type of symmetric key encryption algorithm that uses a 256-bit key to encode and decode data.
 // ref: https://docs.anchormydata.com/docs/what-is-aes-256-cbc
 
 
@@ -73,9 +67,6 @@ function decrypt(encryptedData){
 
 
 
-
-
-
 // Hashing, Salting, and Peppering 
 
 
@@ -96,7 +87,7 @@ function hashPassword(password){
 }
 
 // Verify a password against a stored hash
-function verifyPassword(password, salt, storedHash){
+function verifyPassword(passwo3rd, salt, storedHash){
     // Add pepper to the password
     const peppered = password + PEPPER;
     // Hash the password with the same salt and algorithm as the stored hash
